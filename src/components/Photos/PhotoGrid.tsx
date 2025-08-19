@@ -7,6 +7,7 @@ import { deletePhoto as deletePhotoFromStorage } from '../../firebase/storage';
 import PhotoCard from './PhotoCard';
 import PhotoModal from './PhotoModal';
 import PremiumView from './PremiumView';
+import PremiumTimeView from './PremiumTimeView';
 import PhotoGroups from './PhotoGroups';
 
 const PhotoGrid: React.FC = () => {
@@ -158,6 +159,15 @@ const PhotoGrid: React.FC = () => {
   if (state.currentView === 'premium') {
     return (
       <PremiumView 
+        onExit={() => dispatch({ type: 'SET_VIEW', payload: 'preview' })}
+      />
+    );
+  }
+
+  // Show Premium Time View if that mode is selected
+  if (state.currentView === 'premtime') {
+    return (
+      <PremiumTimeView 
         onExit={() => dispatch({ type: 'SET_VIEW', payload: 'preview' })}
       />
     );

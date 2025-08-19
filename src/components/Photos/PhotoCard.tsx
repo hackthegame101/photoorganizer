@@ -8,7 +8,7 @@ interface PhotoCardProps {
   showSelection: boolean;
   onClick: () => void;
   onSelect: () => void;
-  viewMode?: 'edit' | 'preview' | 'premium';
+  viewMode?: 'edit' | 'preview' | 'premium' | 'premtime';
 }
 
 const PhotoCard: React.FC<PhotoCardProps> = ({
@@ -37,7 +37,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
   };
 
   // For preview mode, use minimal Google Photos style
-  if (viewMode === 'preview' || viewMode === 'premium') {
+  if (viewMode === 'preview' || viewMode === 'premium' || viewMode === 'premtime') {
     return (
       <motion.div
         className={`photo-card preview-mode ${isSelected ? 'selected' : ''}`}

@@ -22,7 +22,7 @@ const Header: React.FC = () => {
     });
   };
 
-  const setView = (view: 'edit' | 'preview' | 'premium') => {
+  const setView = (view: 'edit' | 'preview' | 'premium' | 'premtime') => {
     dispatch({ type: 'SET_VIEW', payload: view });
   };
 
@@ -59,6 +59,12 @@ const Header: React.FC = () => {
               >
                 Premium
               </button>
+              <button
+                className={`btn premium-btn ${state.currentView === 'premtime' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setView('premtime')}
+              >
+                Premtime
+              </button>
             </nav>
 
             {/* Mobile Navigation */}
@@ -80,6 +86,12 @@ const Header: React.FC = () => {
                 onClick={() => setView('premium')}
               >
                 ✨
+              </button>
+              <button
+                className={`btn btn-sm mobile-premium-btn ${state.currentView === 'premtime' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setView('premtime')}
+              >
+                ⏰
               </button>
             </nav>
           </div>

@@ -1,27 +1,21 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePhoto } from '../../contexts/PhotoContext';
-import { getLocationName } from '../../utils/imageProcessing';
-import { preloadImages } from '../../utils/simpleImageLoader';
+import { preloadImage, preloadImages } from '../../utils/simpleImageLoader';
 import OptimizedImage from '../common/OptimizedImage';
 
-interface PremiumViewProps {
+interface PremiumTimeViewProps {
   onExit: () => void;
 }
 
-const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
+const PremiumTimeView: React.FC<PremiumTimeViewProps> = ({ onExit }) => {
   const { state } = usePhoto();
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const [currentLocationGroupIndex, setCurrentLocationGroupIndex] = useState(0);
-  const [currentPhotoInGroupIndex, setCurrentPhotoInGroupIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [slideInterval, setSlideInterval] = useState(3000);
   const [showControls, setShowControls] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [showPauseIndicator, setShowPauseIndicator] = useState(false);
-  const [locationName, setLocationName] = useState<string | null>(null);
-  const [loadingLocation, setLoadingLocation] = useState(false);
-  const [showLocationTitle, setShowLocationTitle] = useState(false);
   const [currentMusicIndex, setCurrentMusicIndex] = useState(0);
   const [isMusicPlaying, setIsMusicPlaying] = useState(true);
   const audioInitialized = true;
@@ -35,139 +29,71 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
 
   const musicTracks = React.useMemo(() => ['/kut.mp3', '/kut1.mp3', '/bmg.mp3'], []);
 
-  const photosByLocation = React.useMemo(() => {
+  // Sort photos by timestamp (when photo was taken)
+  const photosByTime = React.useMemo(() => {
     let photos = state.photos;
     
     if (state.selectedCategory) {
       photos = photos.filter(photo => photo.categoryId === state.selectedCategory);
     }
     
-    // Group photos by location
-    const locationGroups: { [key: string]: typeof photos } = {};
-    const noLocationPhotos: typeof photos = [];
-    
-    photos.forEach(photo => {
-      if (photo.metadata?.location) {
-        const locationKey = `${photo.metadata.location.lat.toFixed(3)},${photo.metadata.location.lng.toFixed(3)}`;
-        if (!locationGroups[locationKey]) {
-          locationGroups[locationKey] = [];
+    // Sort photos by timestamp (newest first, then oldest first if no timestamp)
+    const sortedPhotos = [...photos].sort((a, b) => {
+      const getTimestamp = (date: string | Date | undefined) => {
+        if (!date) return 0;
+        try {
+          return typeof date === 'string' ? new Date(date).getTime() : date.getTime();
+        } catch {
+          return 0;
         }
-        locationGroups[locationKey].push(photo);
-      } else {
-        noLocationPhotos.push(photo);
+      };
+      
+      const aTime = getTimestamp(a.metadata?.dateTaken);
+      const bTime = getTimestamp(b.metadata?.dateTaken);
+      
+      // If both have timestamps, sort by date (newest first)
+      if (aTime && bTime) {
+        return bTime - aTime;
       }
+      
+      // Photos with timestamps come before photos without timestamps
+      if (aTime && !bTime) return -1;
+      if (!aTime && bTime) return 1;
+      
+      // For photos without timestamps, sort by upload date (createdAt)
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
     
-    // Convert to array and sort by photo count (descending)
-    const sortedLocationGroups = Object.entries(locationGroups)
-      .map(([key, photos]) => ({ key, photos, locationName: null as string | null }))
-      .sort((a, b) => b.photos.length - a.photos.length);
-    
-    // Add no-location photos as a separate group if they exist
-    if (noLocationPhotos.length > 0) {
-      sortedLocationGroups.push({ key: 'no-location', photos: noLocationPhotos, locationName: 'Other Photos' as string | null });
-    }
-    
-    return sortedLocationGroups;
+    return sortedPhotos;
   }, [state.photos, state.selectedCategory]);
-
-  const filteredPhotos = React.useMemo(() => {
-    return photosByLocation.flatMap(group => group.photos);
-  }, [photosByLocation]);
 
   // Get image URLs for optimization
   const imageUrls = React.useMemo(() => {
-    return filteredPhotos.map(photo => photo.url);
-  }, [filteredPhotos]);
+    return photosByTime.map(photo => photo.url);
+  }, [photosByTime]);
 
-  const currentLocationGroup = photosByLocation[currentLocationGroupIndex];
-  const currentPhoto = currentLocationGroup?.photos[currentPhotoInGroupIndex];
-  const totalPhotos = filteredPhotos.length;
-
-  // Fetch location name when photo changes (skip on slow devices to improve performance)
-  useEffect(() => {
-    const fetchLocationName = async () => {
-      if (currentPhoto?.metadata?.location && !isSlowDevice) {
-        // Check if we already have a resolved location name
-        if (currentPhoto.metadata.locationName) {
-          setLocationName(currentPhoto.metadata.locationName);
-          setLoadingLocation(false);
-          return;
-        }
-        
-        // Otherwise fetch it
-        setLoadingLocation(true);
-        try {
-          const name = await getLocationName(
-            currentPhoto.metadata.location.lat, 
-            currentPhoto.metadata.location.lng
-          );
-          setLocationName(name);
-        } catch (error) {
-          console.error('Error fetching location name:', error);
-          setLocationName(null);
-        } finally {
-          setLoadingLocation(false);
-        }
-      } else {
-        // For slow devices, show simplified location or skip
-        if (isSlowDevice && currentPhoto?.metadata?.location) {
-          const lat = currentPhoto.metadata.location.lat.toFixed(2);
-          const lng = currentPhoto.metadata.location.lng.toFixed(2);
-          setLocationName(`${lat}°, ${lng}°`);
-        } else {
-          setLocationName(null);
-        }
-        setLoadingLocation(false);
-      }
-    };
-
-    fetchLocationName();
-  }, [currentPhoto?.id, currentPhoto?.metadata?.location, currentPhoto?.metadata?.locationName, isSlowDevice]);
+  const currentPhoto = photosByTime[currentPhotoIndex];
+  const totalPhotos = photosByTime.length;
 
   const navigatePhoto = useCallback((direction: number) => {
-    const currentGroup = photosByLocation[currentLocationGroupIndex];
-    if (!currentGroup) return;
+    if (totalPhotos <= 1) return;
     
-    const newPhotoIndex = currentPhotoInGroupIndex + direction;
+    let newIndex = currentPhotoIndex + direction;
     
-    if (newPhotoIndex < 0) {
-      // Go to previous location group
-      const prevGroupIndex = currentLocationGroupIndex - 1;
-      if (prevGroupIndex < 0) {
-        // Wrap to last group, last photo
-        const lastGroupIndex = photosByLocation.length - 1;
-        const lastGroup = photosByLocation[lastGroupIndex];
-        setCurrentLocationGroupIndex(lastGroupIndex);
-        setCurrentPhotoInGroupIndex(lastGroup.photos.length - 1);
-      } else {
-        const prevGroup = photosByLocation[prevGroupIndex];
-        setCurrentLocationGroupIndex(prevGroupIndex);
-        setCurrentPhotoInGroupIndex(prevGroup.photos.length - 1);
-      }
-    } else if (newPhotoIndex >= currentGroup.photos.length) {
-      // Go to next location group
-      const nextGroupIndex = currentLocationGroupIndex + 1;
-      if (nextGroupIndex >= photosByLocation.length) {
-        // Wrap to first group, first photo
-        setCurrentLocationGroupIndex(0);
-        setCurrentPhotoInGroupIndex(0);
-      } else {
-        setCurrentLocationGroupIndex(nextGroupIndex);
-        setCurrentPhotoInGroupIndex(0);
-      }
-    } else {
-      setCurrentPhotoInGroupIndex(newPhotoIndex);
+    if (newIndex < 0) {
+      newIndex = totalPhotos - 1;
+    } else if (newIndex >= totalPhotos) {
+      newIndex = 0;
     }
     
-    // Update overall photo index for compatibility
-    let totalIndex = 0;
-    for (let i = 0; i < currentLocationGroupIndex; i++) {
-      totalIndex += photosByLocation[i].photos.length;
+    setCurrentPhotoIndex(newIndex);
+  }, [currentPhotoIndex, totalPhotos]);
+
+  const jumpToPhoto = useCallback((index: number) => {
+    if (index >= 0 && index < totalPhotos) {
+      setCurrentPhotoIndex(index);
     }
-    totalIndex += Math.max(0, Math.min(newPhotoIndex, currentGroup.photos.length - 1));
-    setCurrentPhotoIndex(totalIndex);
-  }, [photosByLocation, currentLocationGroupIndex, currentPhotoInGroupIndex]);
+  }, [totalPhotos]);
 
   const handleExit = useCallback(() => {
     if (audioRef.current) {
@@ -179,12 +105,10 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
   const handleMouseMove = useCallback(() => {
     setShowControls(true);
     
-    // Clear existing timeout
     if (controlsTimeoutRef.current) {
       clearTimeout(controlsTimeoutRef.current);
     }
     
-    // Set new timeout to hide controls after 3 seconds of inactivity
     controlsTimeoutRef.current = setTimeout(() => {
       setShowControls(false);
     }, 3000);
@@ -221,21 +145,17 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
       }
     }
     
-    // Show pause indicator for 2 seconds when pausing
     if (!newPlayState) {
       setShowPauseIndicator(true);
       
-      // Clear any existing timeout
       if (pauseIndicatorTimeoutRef.current) {
         clearTimeout(pauseIndicatorTimeoutRef.current);
       }
       
-      // Hide the indicator after 2 seconds
       pauseIndicatorTimeoutRef.current = setTimeout(() => {
         setShowPauseIndicator(false);
       }, 2000);
     } else {
-      // Hide immediately when resuming
       setShowPauseIndicator(false);
       if (pauseIndicatorTimeoutRef.current) {
         clearTimeout(pauseIndicatorTimeoutRef.current);
@@ -244,10 +164,8 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
   }, [isPlaying]);
 
   const handleScreenClick = useCallback((event: React.MouseEvent) => {
-    // Prevent pause/play when clicking on controls or buttons
     const target = event.target as HTMLElement;
     
-    // Check if clicked element or its parent is a button or control
     if (target.closest('button') || 
         target.closest('.premium-controls') || 
         target.closest('.premium-top-controls') || 
@@ -259,25 +177,23 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
     togglePlayPause();
   }, [togglePlayPause]);
 
-  // Initialize and manage audio
+  // Audio management (same as original)
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    // Set initial properties based on device performance
     audio.volume = 0.3;
     audio.preload = isSlowDevice ? 'metadata' : 'auto';
     if (isSlowDevice) {
-      audio.crossOrigin = 'anonymous'; // Help with caching
+      audio.crossOrigin = 'anonymous';
     }
     
     const loadAndPlayTrack = (index: number) => {
       const track = musicTracks[index];
       if (track && audio.src !== window.location.origin + track) {
         audio.src = track;
-        audio.load(); // Properly load the new source
+        audio.load();
         
-        // Wait for audio to be ready before playing
         const playWhenReady = () => {
           if (isMusicPlaying && isPlaying && audioInitialized) {
             audio.play().catch(err => {
@@ -286,7 +202,7 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
           }
         };
         
-        if (audio.readyState >= 2) { // HAVE_CURRENT_DATA
+        if (audio.readyState >= 2) {
           playWhenReady();
         } else {
           audio.addEventListener('canplay', playWhenReady, { once: true });
@@ -299,10 +215,7 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
       setCurrentMusicIndex(nextIndex);
     };
 
-    // Load initial track
     loadAndPlayTrack(currentMusicIndex);
-    
-    // Handle track end
     audio.addEventListener('ended', handleTrackEnd);
 
     return () => {
@@ -330,7 +243,6 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
     return () => clearTimeout(timer);
   }, [isPlaying]);
 
-  // Handle play/pause state changes
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -348,7 +260,7 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
     }
   }, [isMusicPlaying, isPlaying, audioInitialized]);
 
-  // Auto-advance slideshow with location awareness
+  // Auto-advance slideshow
   useEffect(() => {
     if (isPlaying && totalPhotos > 1) {
       intervalRef.current = setInterval(() => {
@@ -367,28 +279,15 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
     };
   }, [isPlaying, slideInterval, totalPhotos, navigatePhoto]);
 
-  // Show location title when entering new location group
-  useEffect(() => {
-    setShowLocationTitle(true);
-    const timer = setTimeout(() => {
-      setShowLocationTitle(false);
-    }, 1500);
-    
-    return () => clearTimeout(timer);
-  }, [currentLocationGroupIndex]);
-
   // Device performance detection
   useEffect(() => {
     const detectSlowDevice = () => {
-      // Check for slow device indicators
       const connection = (navigator as any).connection;
       const isSlowConnection = connection && connection.effectiveType && 
         ['slow-2g', '2g', '3g'].includes(connection.effectiveType);
       const deviceMemory = (navigator as any).deviceMemory;
       const isLowMemory = deviceMemory && deviceMemory < 4;
       const isSlowCPU = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2;
-      
-      // Additional check: if user agent suggests mobile device
       const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       
       return isSlowConnection || isLowMemory || isSlowCPU || (isMobile && window.innerWidth < 768);
@@ -401,16 +300,9 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
   useEffect(() => {
     if (totalPhotos === 0) return;
 
-    // Calculate current overall index
-    let overallIndex = 0;
-    for (let i = 0; i < currentLocationGroupIndex; i++) {
-      overallIndex += photosByLocation[i].photos.length;
-    }
-    overallIndex += currentPhotoInGroupIndex;
-
     // Preload current image and next few images
     const urlsToPreload: string[] = [];
-    for (let i = Math.max(0, overallIndex - 2); i <= Math.min(imageUrls.length - 1, overallIndex + 3); i++) {
+    for (let i = Math.max(0, currentPhotoIndex - 2); i <= Math.min(imageUrls.length - 1, currentPhotoIndex + 3); i++) {
       urlsToPreload.push(imageUrls[i]);
     }
 
@@ -422,7 +314,7 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
       });
     });
 
-  }, [currentLocationGroupIndex, currentPhotoInGroupIndex, imageUrls, totalPhotos, photosByLocation]);
+  }, [currentPhotoIndex, imageUrls, totalPhotos]);
 
   // Keyboard controls
   useEffect(() => {
@@ -448,7 +340,7 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
     return () => document.removeEventListener('keydown', handleKeyPress);
   }, [handleExit, navigatePhoto, togglePlayPause]);
 
-  // Cleanup timeouts on unmount
+  // Cleanup timeouts
   useEffect(() => {
     return () => {
       if (controlsTimeoutRef.current) {
@@ -474,6 +366,19 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
     );
   }
 
+  const formatDate = (date: string | Date) => {
+    try {
+      const dateObj = typeof date === 'string' ? new Date(date) : date;
+      return dateObj.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch {
+      return 'Unknown date';
+    }
+  };
+
   return (
     <div 
       className="premium-view"
@@ -485,29 +390,6 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
       {/* Background Audio */}
       <audio ref={audioRef} />
 
-
-      {/* Location Title Overlay */}
-      <AnimatePresence>
-        {showLocationTitle && currentLocationGroup && (
-          <motion.div
-            className="location-title-overlay"
-            initial={{ opacity: 0, y: -30 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -30 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-          >
-            <div className="location-title">
-              <h2>
-                {loadingLocation ? 'Loading location...' : 
-                 locationName || 
-                 (currentLocationGroup.key === 'no-location' ? 'Other Photos' : 
-                  `Location ${currentLocationGroupIndex + 1}`)}
-              </h2>
-              <p>{currentLocationGroup.photos.length} photos</p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Main Photo Display */}
       <AnimatePresence>
@@ -526,27 +408,16 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
             style={{
               willChange: isSlowDevice ? 'auto' : 'opacity, transform',
               backfaceVisibility: 'hidden',
-              transform: 'translateZ(0)', // Force hardware acceleration
+              transform: 'translateZ(0)',
             }}
             onLoad={() => {
-              let overallIndex = 0;
-              for (let i = 0; i < currentLocationGroupIndex; i++) {
-                overallIndex += photosByLocation[i].photos.length;
-              }
-              overallIndex += currentPhotoInGroupIndex;
-              setImageLoadingStates(prev => new Map(prev).set(overallIndex, 'loaded'));
+              setImageLoadingStates(prev => new Map(prev).set(currentPhotoIndex, 'loaded'));
             }}
             onError={() => {
-              let overallIndex = 0;
-              for (let i = 0; i < currentLocationGroupIndex; i++) {
-                overallIndex += photosByLocation[i].photos.length;
-              }
-              overallIndex += currentPhotoInGroupIndex;
-              setImageLoadingStates(prev => new Map(prev).set(overallIndex, 'error'));
+              setImageLoadingStates(prev => new Map(prev).set(currentPhotoIndex, 'error'));
             }}
           />
           
-          {/* Animated overlay effects */}
           <motion.div
             className="photo-overlay-effect"
             initial={{ opacity: 0 }}
@@ -573,7 +444,7 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
         </motion.div>
       </AnimatePresence>
 
-      {/* Photo Information - Only show in edit mode */}
+      {/* Photo Information */}
       {editMode && (
         <motion.div
           className="premium-photo-info"
@@ -582,17 +453,12 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
           transition={{ duration: 0.3 }}
         >
           <h3>{currentPhoto.originalName}</h3>
-          <p>{currentPhotoInGroupIndex + 1} of {currentLocationGroup?.photos.length || 0} in this location</p>
-          <p className="overall-progress">{currentPhotoIndex + 1} of {totalPhotos} total</p>
+          <p>{currentPhotoIndex + 1} of {totalPhotos} photos</p>
           {currentPhoto.metadata?.dateTaken && (
-            <p>📅 {new Date(currentPhoto.metadata.dateTaken).toLocaleDateString()}</p>
+            <p>📅 {formatDate(currentPhoto.metadata.dateTaken)}</p>
           )}
           {currentPhoto.metadata?.location && (
-            <p>
-              📍 {loadingLocation ? 'Loading location...' : 
-                   locationName || 
-                   `${currentPhoto.metadata.location.lat.toFixed(4)}, ${currentPhoto.metadata.location.lng.toFixed(4)}`}
-            </p>
+            <p>📍 {currentPhoto.metadata.location.lat.toFixed(4)}, {currentPhoto.metadata.location.lng.toFixed(4)}</p>
           )}
           {state.selectedCategory && (
             <p className="category-name">
@@ -632,7 +498,6 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
         animate={{ opacity: showControls ? 1 : 0 }}
         transition={{ duration: 0.3 }}
       >
-        {/* Previous Button */}
         <button
           className="nav-btn nav-prev"
           onClick={() => navigatePhoto(-1)}
@@ -641,7 +506,6 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
           ‹
         </button>
 
-        {/* Next Button */}
         <button
           className="nav-btn nav-next"
           onClick={() => navigatePhoto(1)}
@@ -650,7 +514,6 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
           ›
         </button>
 
-        {/* Bottom Controls - Only show when edit mode is active */}
         {editMode && (
           <div className="bottom-controls">
             <div className="control-group">
@@ -686,41 +549,25 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
         )}
       </motion.div>
 
-      {/* Progress Indicator - Only show when controls are visible */}
+      {/* Progress Indicator */}
       <motion.div
         className="progress-indicator"
         initial={{ opacity: 0 }}
         animate={{ opacity: showControls ? 0.8 : 0.2 }}
         transition={{ duration: 0.3 }}
       >
-        {photosByLocation.map((group, groupIndex) => (
-          <div key={group.key} className="location-progress-group">
-            {group.photos.map((_, photoIndex) => (
-              <motion.div
-                key={`${groupIndex}-${photoIndex}`}
-                className={`progress-dot ${
-                  groupIndex === currentLocationGroupIndex && photoIndex === currentPhotoInGroupIndex ? 'active' : ''
-                } ${groupIndex === currentLocationGroupIndex ? 'current-location' : ''}`}
-                onClick={() => {
-                  setCurrentLocationGroupIndex(groupIndex);
-                  setCurrentPhotoInGroupIndex(photoIndex);
-                  // Update overall index
-                  let totalIndex = 0;
-                  for (let i = 0; i < groupIndex; i++) {
-                    totalIndex += photosByLocation[i].photos.length;
-                  }
-                  totalIndex += photoIndex;
-                  setCurrentPhotoIndex(totalIndex);
-                }}
-                whileHover={{ scale: 1.2 }}
-                whileTap={{ scale: 0.8 }}
-              />
-            ))}
-          </div>
+        {photosByTime.map((_, index) => (
+          <motion.div
+            key={index}
+            className={`progress-dot ${index === currentPhotoIndex ? 'active' : ''}`}
+            onClick={() => jumpToPhoto(index)}
+            whileHover={{ scale: 1.2 }}
+            whileTap={{ scale: 0.8 }}
+          />
         ))}
       </motion.div>
 
-      {/* Animated background particles - reduced for slow devices */}
+      {/* Animated background particles */}
       {!isSlowDevice && (
         <div className="background-particles">
           {[...Array(isSlowDevice ? 8 : 20)].map((_, index) => (
@@ -750,4 +597,4 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
   );
 };
 
-export default PremiumView;
+export default PremiumTimeView;

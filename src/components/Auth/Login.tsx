@@ -86,12 +86,31 @@ const Login: React.FC = () => {
         transition={{ duration: 0.5 }}
       >
         <div className="auth-header">
-          <h1 className="text-2xl font-bold text-center mb-sm">
-            Photo Organizer
-          </h1>
-          <p className="text-center text-sm opacity-75 mb-lg">
-            {isLogin ? 'Sign in to your account' : 'Create a new account'}
+          <div className="welcome-logo">
+            <h1 className="text-3xl font-bold text-center mb-xs">
+              📸 Swopnil's Photo Organizer
+            </h1>
+          </div>
+          <p className="text-center text-lg font-medium mb-xs">
+            Your Personal Photo Management Solution
           </p>
+          <p className="text-center text-sm opacity-75 mb-lg">
+            {isLogin ? 'Welcome back! Sign in to organize your memories' : 'Join us to start organizing your photo collection'}
+          </p>
+          <div className="feature-highlights">
+            <div className="feature-item">
+              <span className="feature-icon">🔍</span>
+              <span className="feature-text">Smart Search</span>
+            </div>
+            <div className="feature-item">
+              <span className="feature-icon">📁</span>
+              <span className="feature-text">Auto Organization</span>
+            </div>
+            <div className="feature-item">
+              <span className="feature-icon">☁️</span>
+              <span className="feature-text">Cloud Sync</span>
+            </div>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="auth-form">

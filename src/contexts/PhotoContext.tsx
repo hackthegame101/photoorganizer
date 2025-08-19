@@ -5,7 +5,7 @@ interface PhotoState {
   photos: Photo[];
   categories: Category[];
   selectedPhotos: string[];
-  currentView: 'edit' | 'preview' | 'premium';
+  currentView: 'edit' | 'preview' | 'premium' | 'premtime';
   searchQuery: string;
   selectedCategory: string | null;
   theme: 'light' | 'dark';
@@ -24,7 +24,7 @@ type PhotoAction =
   | { type: 'DELETE_CATEGORY'; payload: string }
   | { type: 'SET_SELECTED_PHOTOS'; payload: string[] }
   | { type: 'TOGGLE_PHOTO_SELECTION'; payload: string }
-  | { type: 'SET_VIEW'; payload: 'edit' | 'preview' | 'premium' }
+  | { type: 'SET_VIEW'; payload: 'edit' | 'preview' | 'premium' | 'premtime' }
   | { type: 'SET_SEARCH_QUERY'; payload: string }
   | { type: 'SET_SELECTED_CATEGORY'; payload: string | null }
   | { type: 'SET_THEME'; payload: 'light' | 'dark' }
