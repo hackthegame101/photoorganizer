@@ -116,7 +116,7 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
       onMouseLeave={() => setShowControls(false)}
     >
       {/* Background Audio */}
-      <audio ref={audioRef} src="/bgm.mp3" />
+      <audio ref={audioRef} src="/bmg.mp3" />
 
       {/* Main Photo Display */}
       <AnimatePresence mode="wait">
