@@ -1,46 +1,191 @@
-# Getting Started with Create React App
+# Photo Organizer
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A sophisticated, modern React photo organizer application with Firebase backend, featuring comprehensive photo management, categorization, and advanced viewing capabilities.
+
+## Features
+
+### Core Functionality
+- **Photo Upload & Management**
+  - Drag and drop upload with visual feedback
+  - Support for all image formats (HEIC, JPEG, PNG, GIF, WEBP, BMP, TIFF)
+  - Bulk upload with progress indicators
+  - Auto-rotation based on EXIF data
+  - Duplicate detection and handling
+
+- **Category System**
+  - Create, edit, and delete custom categories
+  - Drag and drop photos between categories
+  - Category color coding and custom icons
+  - Smart auto-categorization suggestions
+  - Category-based photo counts and statistics
+
+- **Dual View Modes**
+  - **Edit Mode**: Full management interface with categories and bulk operations
+  - **Preview Mode**: Clean, gallery-focused view for browsing
+  - **Album Mode**: Traditional photo album layout with page-turning effects
+
+### Advanced Features
+- **Search & Organization**
+  - Advanced search by filename, date, category, metadata
+  - Filter by date ranges, file types, dimensions
+  - Smart collections (Recent, Favorites, Large files)
+  - Tag system with auto-suggestions
+
+- **Download & Print Features**
+  - Individual photo downloads in original quality
+  - Bulk category downloads as ZIP files
+  - Print-ready sizing for standard dimensions
+  - DPI optimization (300 DPI for print, 72 DPI for web)
+
+- **User Interface**
+  - Modern, responsive design with dark/light theme toggle
+  - Smooth animations and micro-interactions
+  - Mobile-optimized touch gestures
+  - Keyboard shortcuts for power users
+
+## Tech Stack
+
+- **Frontend**: React 18+ with TypeScript
+- **Backend**: Firebase (Firestore, Storage, Authentication)
+- **Styling**: CSS Custom Properties with CSS-in-JS
+- **Animation**: Framer Motion
+- **Image Processing**: HEIC2ANY, Canvas API
+- **File Handling**: React Dropzone, JSZip
+- **State Management**: React Context + useReducer
+
+## Setup Instructions
+
+### 1. Clone and Install Dependencies
+
+```bash
+cd photo-organizer
+npm install
+```
+
+### 2. Firebase Setup
+
+1. Create a new Firebase project at [Firebase Console](https://console.firebase.google.com/)
+
+2. Enable the following services:
+   - **Authentication** (Email/Password and Google Sign-in)
+   - **Firestore Database**
+   - **Storage**
+
+3. Get your Firebase configuration from Project Settings > General > Your apps
+
+4. Update the Firebase configuration in `src/firebase/config.ts`:
+
+```typescript
+const firebaseConfig = {
+  apiKey: "your-api-key",
+  authDomain: "your-project-id.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project-id.appspot.com",
+  messagingSenderId: "your-sender-id",
+  appId: "your-app-id"
+};
+```
+
+### 3. Firestore Security Rules
+
+Set up the  security rules in Firestore:
+
+
+### 4. Storage Security Rules
+
+Set up the  security rules in Storage:
+
+### 5. Authentication Setup
+
+1. In Firebase Console, go to Authentication > Sign-in method
+2. Enable Email/Password authentication
+3. Enable Google authentication (optional)
+4. Add your domain to authorized domains if deploying
+
+### 6. Start Development Server
+
+```bash
+npm start
+```
+
+The application will open at `http://localhost:3000`
+
+## Project Structure
+
+```
+src/
+├── components/
+│   ├── Auth/
+│   │   └── Login.tsx
+│   ├── Layout/
+│   │   ├── Header.tsx
+│   │   └── Sidebar.tsx
+│   ├── Photos/
+│   │   ├── PhotoCard.tsx
+│   │   ├── PhotoGrid.tsx
+│   │   └── PhotoModal.tsx
+│   ├── Search/
+│   │   └── SearchBar.tsx
+│   └── Upload/
+│       └── PhotoUpload.tsx
+├── contexts/
+│   ├── AuthContext.tsx
+│   └── PhotoContext.tsx
+├── firebase/
+│   ├── auth.ts
+│   ├── config.ts
+│   ├── firestore.ts
+│   └── storage.ts
+├── styles/
+│   └── globals.css
+├── utils/
+│   ├── downloadUtils.ts
+│   └── imageProcessing.ts
+├── App.tsx
+└── index.tsx
+```
 
 ## Available Scripts
 
-In the project directory, you can run:
+- `npm start` - Runs the development server
+- `npm build` - Builds the app for production
+- `npm test` - Runs the test suite
+- `npm run eject` - Ejects from Create React App (not recommended)
 
-### `npm start`
+## Features Implementation Status
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+✅ **Completed**
+- React project setup with TypeScript
+- Firebase configuration and authentication
+- Core project structure and components
+- Photo upload with drag/drop and HEIC support
+- Photo grid with multiple view modes
+- Photo modal with zoom and navigation
+- Search functionality
+- Dark/light theme support
+- Responsive design
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+🚧 **In Progress**
+- Category management system
+- Album view with themes
+- Advanced search and filtering
+- Download and print features
 
-### `npm test`
+📋 **Planned**
+- Bulk operations
+- Tag management
+- Advanced photo editing
+- Sharing capabilities
+- PWA functionality
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Contributing
 
-### `npm run build`
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## License
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+This project is licensed under the MIT License - see the LICENSE file for details.
