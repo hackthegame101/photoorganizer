@@ -1,4 +1,6 @@
 import heic2any from 'heic2any';
+// @ts-ignore
+import EXIF from 'exif-js';
 
 export interface ImageMetadata {
   width: number;
@@ -30,13 +32,47 @@ export const getImageMetadata = (file: File): Promise<ImageMetadata> => {
     const url = URL.createObjectURL(file);
     
     img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve({
-        width: img.naturalWidth,
-        height: img.naturalHeight,
-        size: file.size,
-        type: file.type,
-      });
+      try {
+        // Extract EXIF data
+        EXIF.getData(img as any, function(this: any) {
+          const dateTaken = EXIF.getTag(this, 'DateTime') || EXIF.getTag(this, 'DateTimeOriginal');
+          const lat = EXIF.getTag(this, 'GPSLatitude');
+          const lon = EXIF.getTag(this, 'GPSLongitude');
+          const latRef = EXIF.getTag(this, 'GPSLatitudeRef');
+          const lonRef = EXIF.getTag(this, 'GPSLongitudeRef');
+          
+          let location: { lat: number; lng: number } | undefined;
+          if (lat && lon && latRef && lonRef) {
+            const latDecimal = convertDMSToDD(lat, latRef);
+            const lonDecimal = convertDMSToDD(lon, lonRef);
+            location = { lat: latDecimal, lng: lonDecimal };
+          }
+          
+          let dateObject: Date | undefined;
+          if (dateTaken) {
+            dateObject = new Date(dateTaken);
+          }
+          
+          URL.revokeObjectURL(url);
+          resolve({
+            width: img.naturalWidth,
+            height: img.naturalHeight,
+            size: file.size,
+            type: file.type,
+            dateTaken: dateObject,
+            location,
+          });
+        });
+      } catch (error) {
+        // If EXIF extraction fails, just return basic metadata
+        URL.revokeObjectURL(url);
+        resolve({
+          width: img.naturalWidth,
+          height: img.naturalHeight,
+          size: file.size,
+          type: file.type,
+        });
+      }
     };
     
     img.onerror = () => {
@@ -46,6 +82,53 @@ export const getImageMetadata = (file: File): Promise<ImageMetadata> => {
     
     img.src = url;
   });
+};
+
+const convertDMSToDD = (dms: number[], ref: string): number => {
+  let dd = dms[0] + (dms[1] / 60) + (dms[2] / 3600);
+  if (ref === 'S' || ref === 'W') dd = dd * -1;
+  return dd;
+};
+
+export const getLocationName = async (lat: number, lng: number): Promise<string | null> => {
+  try {
+    // Use a free reverse geocoding service
+    const response = await fetch(
+      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
+    );
+    const data = await response.json();
+    
+    if (data.city) {
+      return data.city;
+    } else if (data.locality) {
+      return data.locality;
+    } else if (data.principalSubdivision) {
+      return data.principalSubdivision;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting location name:', error);
+    return null;
+  }
+};
+
+export const getTimeBasedCategory = (date: Date): string => {
+  const now = new Date();
+  const diffTime = Math.abs(now.getTime() - date.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  if (diffDays <= 7) {
+    return 'This Week';
+  } else if (diffDays <= 30) {
+    return 'This Month';
+  } else if (diffDays <= 90) {
+    return 'Last 3 Months';
+  } else if (diffDays <= 365) {
+    return 'This Year';
+  } else {
+    const year = date.getFullYear();
+    return `${year}`;
+  }
 };
 
 export const generateThumbnail = (file: File, maxSize: number = 300): Promise<string> => {

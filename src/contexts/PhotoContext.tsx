@@ -35,7 +35,7 @@ const initialState: PhotoState = {
   photos: [],
   categories: [],
   selectedPhotos: [],
-  currentView: 'edit',
+  currentView: 'preview',
   searchQuery: '',
   selectedCategory: null,
   theme: 'dark',

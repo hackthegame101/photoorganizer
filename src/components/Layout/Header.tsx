@@ -54,7 +54,7 @@ const Header: React.FC = () => {
                 Preview
               </button>
               <button
-                className={`btn ${state.currentView === 'premium' ? 'btn-primary' : 'btn-secondary'}`}
+                className={`btn premium-btn ${state.currentView === 'premium' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setView('premium')}
               >
                 Premium
@@ -73,7 +73,7 @@ const Header: React.FC = () => {
             
             {user && (
               <div className="flex items-center gap-sm">
-                <span className="text-sm">{user.email}</span>
+                <span className="text-sm user-email">{user.email}</span>
                 <button
                   className="btn btn-secondary btn-sm"
                   onClick={handleSignOut}

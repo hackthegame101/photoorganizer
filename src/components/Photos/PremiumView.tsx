@@ -12,8 +12,10 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
   const [isPlaying, setIsPlaying] = useState(true);
   const [slideInterval, setSlideInterval] = useState(3000);
   const [showControls, setShowControls] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const filteredPhotos = React.useMemo(() => {
     let photos = state.photos;
@@ -42,6 +44,20 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
     }
     onExit();
   }, [onExit]);
+
+  const handleMouseMove = useCallback(() => {
+    setShowControls(true);
+    
+    // Clear existing timeout
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+    
+    // Set new timeout to hide controls after 3 seconds of inactivity
+    controlsTimeoutRef.current = setTimeout(() => {
+      setShowControls(false);
+    }, 3000);
+  }, []);
 
   // Initialize audio
   useEffect(() => {
@@ -95,6 +111,15 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
     return () => document.removeEventListener('keydown', handleKeyPress);
   }, [isPlaying, handleExit, navigatePhoto]);
 
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+    };
+  }, []);
+
   if (!currentPhoto) {
     return (
       <div className="premium-view-empty">
@@ -112,7 +137,8 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
   return (
     <div 
       className="premium-view"
-      onMouseMove={() => setShowControls(true)}
+      style={{ cursor: showControls ? 'default' : 'none' }}
+      onMouseMove={handleMouseMove}
       onMouseLeave={() => setShowControls(false)}
     >
       {/* Background Audio */}
@@ -148,20 +174,51 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
         </motion.div>
       </AnimatePresence>
 
-      {/* Photo Information */}
+      {/* Photo Information - Only show in edit mode */}
+      {editMode && (
+        <motion.div
+          className="premium-photo-info"
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: showControls ? 1 : 0, y: showControls ? 0 : 50 }}
+          transition={{ duration: 0.3 }}
+        >
+          <h3>{currentPhoto.originalName}</h3>
+          <p>{currentPhotoIndex + 1} of {filteredPhotos.length}</p>
+          {currentPhoto.metadata?.dateTaken && (
+            <p>📅 {new Date(currentPhoto.metadata.dateTaken).toLocaleDateString()}</p>
+          )}
+          {currentPhoto.metadata?.location && (
+            <p>📍 {currentPhoto.metadata.location.lat.toFixed(4)}, {currentPhoto.metadata.location.lng.toFixed(4)}</p>
+          )}
+          {state.selectedCategory && (
+            <p className="category-name">
+              {state.categories.find(cat => cat.id === state.selectedCategory)?.name || 'Category'}
+            </p>
+          )}
+        </motion.div>
+      )}
+
+      {/* Top Right Controls */}
       <motion.div
-        className="premium-photo-info"
-        initial={{ opacity: 0, y: 50 }}
-        animate={{ opacity: showControls ? 1 : 0, y: showControls ? 0 : 50 }}
+        className="premium-top-controls"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: showControls ? 1 : 0 }}
         transition={{ duration: 0.3 }}
       >
-        <h3>{currentPhoto.originalName}</h3>
-        <p>{currentPhotoIndex + 1} of {filteredPhotos.length}</p>
-        {state.selectedCategory && (
-          <p className="category-name">
-            {state.categories.find(cat => cat.id === state.selectedCategory)?.name || 'Category'}
-          </p>
-        )}
+        <button
+          className={`top-control-btn ${editMode ? 'active' : ''}`}
+          onClick={() => setEditMode(!editMode)}
+          title="Toggle edit mode"
+        >
+          ✏️
+        </button>
+        <button
+          className="top-control-btn exit-btn-top"
+          onClick={handleExit}
+          title="Exit Premium View"
+        >
+          ✕
+        </button>
       </motion.div>
 
       {/* Navigation Controls */}
@@ -189,54 +246,57 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
           ›
         </button>
 
-        {/* Bottom Controls */}
-        <div className="bottom-controls">
-          <div className="control-group">
-            <button
-              className="control-btn"
-              onClick={() => setIsPlaying(!isPlaying)}
-              title={isPlaying ? 'Pause slideshow' : 'Play slideshow'}
-            >
-              {isPlaying ? '⏸️' : '▶️'}
-            </button>
-            
-            <select
-              className="speed-control"
-              value={slideInterval}
-              onChange={(e) => setSlideInterval(Number(e.target.value))}
-              title="Slideshow speed"
-            >
-              <option value={1000}>Fast (1s)</option>
-              <option value={3000}>Normal (3s)</option>
-              <option value={5000}>Slow (5s)</option>
-              <option value={10000}>Very Slow (10s)</option>
-            </select>
+        {/* Bottom Controls - Only show when edit mode is active */}
+        {editMode && (
+          <div className="bottom-controls">
+            <div className="control-group">
+              <button
+                className="control-btn"
+                onClick={() => setIsPlaying(!isPlaying)}
+                title={isPlaying ? 'Pause slideshow' : 'Play slideshow'}
+              >
+                {isPlaying ? '⏸️' : '▶️'}
+              </button>
+              
+              <select
+                className="speed-control"
+                value={slideInterval}
+                onChange={(e) => setSlideInterval(Number(e.target.value))}
+                title="Slideshow speed"
+              >
+                <option value={1000}>Fast (1s)</option>
+                <option value={3000}>Normal (3s)</option>
+                <option value={5000}>Slow (5s)</option>
+                <option value={10000}>Very Slow (10s)</option>
+              </select>
 
-            <button
-              className="control-btn"
-              onClick={() => {
-                if (audioRef.current) {
-                  if (audioRef.current.paused) {
-                    audioRef.current.play();
-                  } else {
-                    audioRef.current.pause();
+              <button
+                className="control-btn"
+                onClick={() => {
+                  if (audioRef.current) {
+                    if (audioRef.current.paused) {
+                      audioRef.current.play();
+                    } else {
+                      audioRef.current.pause();
+                    }
                   }
-                }
-              }}
-              title="Toggle music"
-            >
-              🎵
-            </button>
+                }}
+                title="Toggle music"
+              >
+                🎵
+              </button>
+            </div>
           </div>
-
-          <button className="exit-btn" onClick={handleExit}>
-            Exit Premium View
-          </button>
-        </div>
+        )}
       </motion.div>
 
-      {/* Progress Indicator */}
-      <div className="progress-indicator">
+      {/* Progress Indicator - Only show when controls are visible */}
+      <motion.div
+        className="progress-indicator"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: showControls ? 0.8 : 0.2 }}
+        transition={{ duration: 0.3 }}
+      >
         {filteredPhotos.map((_, index) => (
           <motion.div
             key={index}
@@ -246,7 +306,7 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
             whileTap={{ scale: 0.8 }}
           />
         ))}
-      </div>
+      </motion.div>
 
       {/* Animated background particles */}
       <div className="background-particles">

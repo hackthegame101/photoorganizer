@@ -7,6 +7,7 @@ import { deletePhoto as deletePhotoFromStorage } from '../../firebase/storage';
 import PhotoCard from './PhotoCard';
 import PhotoModal from './PhotoModal';
 import PremiumView from './PremiumView';
+import PhotoGroups from './PhotoGroups';
 
 const PhotoGrid: React.FC = () => {
   const { state, dispatch } = usePhoto();
@@ -160,6 +161,11 @@ const PhotoGrid: React.FC = () => {
         onExit={() => dispatch({ type: 'SET_VIEW', payload: 'preview' })}
       />
     );
+  }
+
+  // Show Photo Groups for preview mode when not filtering by category
+  if (state.currentView === 'preview' && !state.selectedCategory) {
+    return <PhotoGroups />;
   }
 
   return (

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EXIF Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .result { margin: 20px 0; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+        input { margin: 20px 0; }
+        img { max-width: 200px; max-height: 200px; }
+    </style>
+</head>
+<body>
+    <h1>EXIF Data Test</h1>
+    <p>Upload a photo with GPS location data and date taken to test EXIF extraction:</p>
+    <input type="file" id="fileInput" accept="image/*" />
+    
+    <div id="result"></div>
+    
+    <script>
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Processing...</p>';
+            
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            
+            img.onload = function() {
+                EXIF.getData(img, function() {
+                    const dateTaken = EXIF.getTag(this, 'DateTime') || EXIF.getTag(this, 'DateTimeOriginal');
+                    const lat = EXIF.getTag(this, 'GPSLatitude');
+                    const lon = EXIF.getTag(this, 'GPSLongitude');
+                    const latRef = EXIF.getTag(this, 'GPSLatitudeRef');
+                    const lonRef = EXIF.getTag(this, 'GPSLongitudeRef');
+                    
+                    let location = null;
+                    if (lat && lon && latRef && lonRef) {
+                        const latDecimal = lat[0] + (lat[1] / 60) + (lat[2] / 3600);
+                        const lonDecimal = lon[0] + (lon[1] / 60) + (lon[2] / 3600);
+                        location = {
+                            lat: latRef === 'S' ? -latDecimal : latDecimal,
+                            lng: lonRef === 'W' ? -lonDecimal : lonDecimal
+                        };
+                    }
+                    
+                    const allTags = EXIF.getAllTags(this);
+                    console.log('All EXIF tags:', allTags);
+                    
+                    resultDiv.innerHTML = `
+                        <div class="result">
+                            <h3>File: ${file.name}</h3>
+                            <img src="${url}" alt="Preview" />
+                            <h4>Extracted EXIF Data:</h4>
+                            <p><strong>Date Taken:</strong> ${dateTaken || 'Not found'}</p>
+                            <p><strong>Location:</strong> ${location ? `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}` : 'Not found'}</p>
+                            <p><strong>Raw GPS Data:</strong></p>
+                            <ul>
+                                <li>Latitude: ${lat ? lat.join(', ') + ' ' + latRef : 'Not found'}</li>
+                                <li>Longitude: ${lon ? lon.join(', ') + ' ' + lonRef : 'Not found'}</li>
+                            </ul>
+                            <p><strong>All EXIF Tags:</strong> ${Object.keys(allTags).length} found</p>
+                            <details>
+                                <summary>View all tags</summary>
+                                <pre>${JSON.stringify(allTags, null, 2)}</pre>
+                            </details>
+                        </div>
+                    `;
+                });
+                
+                URL.revokeObjectURL(url);
+            };
+            
+            img.onerror = function() {
+                resultDiv.innerHTML = '<p>Error loading image</p>';
+                URL.revokeObjectURL(url);
+            };
+            
+            img.src = url;
+        });
+    </script>
+</body>
+</html>

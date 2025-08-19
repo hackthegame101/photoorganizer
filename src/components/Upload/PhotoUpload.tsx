@@ -3,7 +3,7 @@ import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePhoto } from '../../contexts/PhotoContext';
-import { convertHeicToJpeg } from '../../utils/imageProcessing';
+import { convertHeicToJpeg, getImageMetadata } from '../../utils/imageProcessing';
 import { uploadPhoto } from '../../firebase/storage';
 import { createPhoto } from '../../firebase/firestore';
 
@@ -55,6 +55,11 @@ const PhotoUpload: React.FC = () => {
         item.file === file ? { ...item, progress: 70 } : item
       ));
 
+      // Extract image metadata including EXIF data
+      console.log('Extracting image metadata...');
+      const metadata = await getImageMetadata(processedFile);
+      console.log('Extracted metadata:', metadata);
+
       const photoData: any = {
         filename: photoId,
         originalName: file.name,
@@ -62,12 +67,7 @@ const PhotoUpload: React.FC = () => {
         thumbnailUrl: downloadUrl,
         userId: user.uid,
         tags: [],
-        metadata: {
-          size: file.size,
-          type: processedFile.type,
-          width: 0,
-          height: 0,
-        }
+        metadata: metadata
       };
 
       // Only add categoryId if a category is selected
