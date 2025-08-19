@@ -1456,6 +1456,10 @@ input:focus, textarea:focus, select:focus {
   background: #000;
   z-index: 2000;
   overflow: hidden;
+  /* Performance optimizations */
+  will-change: auto;
+  contain: layout style paint;
+  transform: translateZ(0); /* Force hardware acceleration */
 }
 
 .premium-view-empty {
@@ -1504,6 +1508,11 @@ input:focus, textarea:focus, select:focus {
   object-fit: contain;
   border-radius: 8px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+  /* Performance optimizations */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .photo-overlay-effect {
@@ -1734,8 +1743,160 @@ input:focus, textarea:focus, select:focus {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  align-items: center;
   gap: 10px;
   z-index: 20;
+  max-width: 90vw;
+  overflow-x: auto;
+  padding: 10px 20px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  border-radius: 25px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Hide progress indicator on mobile */
+@media (max-width: 768px) {
+  .progress-indicator {
+    display: none;
+  }
+  
+  /* Make exit button more prominent on mobile */
+  .premium-top-controls {
+    top: 20px;
+    right: 20px;
+    z-index: 30;
+  }
+  
+  .top-control-btn {
+    padding: 12px;
+    font-size: 1.2rem;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(10px);
+    border-radius: 50%;
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .exit-btn-top {
+    background: rgba(255, 45, 85, 0.8) !important;
+  }
+  
+  /* Adjust navigation buttons for mobile */
+  .nav-btn {
+    font-size: 2rem;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(10px);
+  }
+  
+  /* Make audio start hint more prominent on mobile */
+  .audio-start-hint {
+    bottom: 80px;
+    right: 20px;
+    left: 20px;
+    text-align: center;
+  }
+  
+  .hint-content {
+    justify-content: center;
+    padding: var(--spacing-lg);
+    font-size: 1rem;
+  }
+  
+  /* Photo Modal Mobile Improvements */
+  .photo-modal {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+  }
+  
+  .modal-header {
+    padding: var(--spacing-lg);
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
+    position: relative;
+    z-index: 20;
+  }
+  
+  .modal-actions {
+    gap: var(--spacing-md);
+  }
+  
+  .modal-actions .btn {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 12px;
+    font-size: 1.1rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Make close button very prominent */
+  .modal-actions .btn:last-child {
+    background: rgba(255, 45, 85, 0.9) !important;
+    color: white !important;
+    font-weight: bold;
+    box-shadow: 0 4px 20px rgba(255, 45, 85, 0.3);
+  }
+  
+  /* Improve navigation buttons on mobile */
+  .photo-modal .nav-btn {
+    width: 60px;
+    height: 60px;
+    font-size: 1.5rem;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(15px);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .photo-modal .nav-prev {
+    left: 20px;
+  }
+  
+  .photo-modal .nav-next {
+    right: 20px;
+  }
+  
+  /* Mobile hint for photo modal */
+  .mobile-hint {
+    position: absolute;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 25;
+    pointer-events: none;
+  }
+  
+  .hint-content-modal {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(10px);
+    border-radius: var(--border-radius-large);
+    padding: var(--spacing-md) var(--spacing-lg);
+    color: white;
+    font-size: 0.9rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
+  }
+  
+  .tap-icon {
+    font-size: 1.2rem;
+    animation: tap-pulse 2s infinite;
+  }
+  
+  @keyframes tap-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+  }
 }
 
 .progress-dot {
@@ -1795,6 +1956,131 @@ input:focus, textarea:focus, select:focus {
   box-shadow: var(--shadow-lg);
   border: 1px solid rgba(255, 255, 255, 0.1);
   z-index: 10;
+}
+
+/* Location Title Overlay */
+.location-title-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 15;
+  pointer-events: none;
+}
+
+.location-title {
+  text-align: center;
+  color: white;
+  padding: var(--spacing-xl);
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(15px);
+  border-radius: var(--border-radius-large);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+}
+
+.location-title h2 {
+  font-size: 2.5rem;
+  font-weight: 600;
+  margin-bottom: var(--spacing-md);
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+  background: linear-gradient(135deg, #fff 0%, #e0e0e0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.location-title p {
+  font-size: 1.2rem;
+  opacity: 0.9;
+  font-weight: 300;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+
+/* Progress Indicator Updates */
+.location-progress-group {
+  display: flex;
+  gap: 6px;
+  position: relative;
+  margin-right: 15px;
+}
+
+.location-progress-group::after {
+  content: '';
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 1px;
+}
+
+.location-progress-group:last-child::after {
+  display: none;
+}
+
+.progress-dot.current-location {
+  background: rgba(0, 122, 255, 0.6);
+  border: 2px solid rgba(0, 122, 255, 0.8);
+}
+
+.progress-dot.current-location.active {
+  background: #007AFF;
+  border: 2px solid #007AFF;
+  box-shadow: 0 0 25px rgba(0, 122, 255, 0.9);
+}
+
+/* Premium Photo Info Updates */
+.premium-photo-info .overall-progress {
+  font-size: 0.9rem;
+  opacity: 0.7;
+  margin-top: var(--spacing-xs);
+}
+
+/* Music Control Button */
+.control-btn.muted {
+  opacity: 0.5;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Audio Start Hint */
+.audio-start-hint {
+  position: absolute;
+  bottom: 30px;
+  right: 30px;
+  z-index: 25;
+  pointer-events: none;
+}
+
+.hint-content {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  border-radius: var(--border-radius-large);
+  padding: var(--spacing-md) var(--spacing-lg);
+  color: white;
+  font-size: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.music-icon {
+  font-size: 1.2rem;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
 }
 
 .pause-icon {

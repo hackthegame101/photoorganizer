@@ -22,6 +22,18 @@ const PhotoModal: React.FC<PhotoModalProps> = ({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [showInfo, setShowInfo] = useState(false);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
+  const [lastTap, setLastTap] = useState(0);
+  const [showMobileHint, setShowMobileHint] = useState(false);
+
+  useEffect(() => {
+    // Show mobile hint on small screens
+    const isMobile = window.innerWidth <= 768;
+    if (isMobile) {
+      setShowMobileHint(true);
+      const timer = setTimeout(() => setShowMobileHint(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -103,6 +115,17 @@ const PhotoModal: React.FC<PhotoModalProps> = ({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // Handle double tap to close on mobile
+  const handleTouchEnd = () => {
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+    if (lastTap && (now - lastTap) < DOUBLE_TAP_DELAY) {
+      onClose();
+    } else {
+      setLastTap(now);
+    }
+  };
+
   return (
     <motion.div
       className="photo-modal-overlay"
@@ -180,7 +203,7 @@ const PhotoModal: React.FC<PhotoModalProps> = ({
         )}
 
         {/* Image Container */}
-        <div className="photo-container">
+        <div className="photo-container" onTouchEnd={handleTouchEnd}>
           <motion.img
             src={photo.url}
             alt={photo.originalName}
@@ -272,6 +295,24 @@ const PhotoModal: React.FC<PhotoModalProps> = ({
                     </div>
                   </div>
                 )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Mobile Hint */}
+        <AnimatePresence>
+          {showMobileHint && (
+            <motion.div
+              className="mobile-hint"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="hint-content-modal">
+                <span className="tap-icon">👆</span>
+                <p>Double tap photo to close</p>
               </div>
             </motion.div>
           )}

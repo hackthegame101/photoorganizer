@@ -180,7 +180,8 @@ export const getLocationName = async (lat: number, lng: number): Promise<string 
       {
         headers: {
           'User-Agent': 'PhotoOrganizer/1.0 (Contact: user@example.com)' // Required by Nominatim
-        }
+        },
+        signal: AbortSignal.timeout(5000) // 5 second timeout
       }
     );
     
@@ -251,9 +252,13 @@ export const getLocationName = async (lat: number, lng: number): Promise<string 
     return locationName;
   } catch (error) {
     console.error(`Error getting location name for ${lat}, ${lng}:`, error);
-    // Cache the null result to avoid repeated failed requests
-    locationNameCache.set(cacheKey, null);
-    return null;
+    
+    // Create a fallback location name based on coordinates
+    const fallbackName = `Location (${lat.toFixed(2)}°, ${lng.toFixed(2)}°)`;
+    
+    // Cache the fallback result to avoid repeated failed requests
+    locationNameCache.set(cacheKey, fallbackName);
+    return fallbackName;
   }
 };
 
