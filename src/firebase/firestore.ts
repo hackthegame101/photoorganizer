@@ -30,6 +30,7 @@ export interface Photo {
     height?: number;
     dateTaken?: Date;
     location?: { lat: number; lng: number };
+    locationName?: string;
   };
   createdAt: any;
   updatedAt: any;

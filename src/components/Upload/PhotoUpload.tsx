@@ -3,7 +3,7 @@ import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePhoto } from '../../contexts/PhotoContext';
-import { convertHeicToJpeg, getImageMetadata } from '../../utils/imageProcessing';
+import { convertHeicToJpeg, getImageMetadata, getLocationName } from '../../utils/imageProcessing';
 import { uploadPhoto } from '../../firebase/storage';
 import { createPhoto } from '../../firebase/firestore';
 
@@ -91,6 +91,16 @@ const PhotoUpload: React.FC = () => {
           !isNaN(metadata.location.lat) && 
           !isNaN(metadata.location.lng)) {
         cleanMetadata.location = metadata.location;
+        
+        // Try to resolve location name during upload
+        try {
+          const locationName = await getLocationName(metadata.location.lat, metadata.location.lng);
+          if (locationName) {
+            cleanMetadata.locationName = locationName;
+          }
+        } catch (error) {
+          console.warn('Failed to resolve location name during upload:', error);
+        }
       }
 
       const photoData: any = {

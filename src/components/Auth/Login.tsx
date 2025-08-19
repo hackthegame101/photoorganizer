@@ -6,21 +6,46 @@ const Login: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccess('');
+
+    // Validation
+    if (!email || !password) {
+      setError('Please fill in all fields.');
+      setLoading(false);
+      return;
+    }
+
+    if (!isLogin && password !== confirmPassword) {
+      setError('Passwords do not match.');
+      setLoading(false);
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      setLoading(false);
+      return;
+    }
 
     try {
       if (isLogin) {
         await signInUser(email, password);
+        setSuccess('Sign in successful!');
       } else {
         await createUser(email, password);
+        setSuccess('Account created successfully! Welcome!');
       }
     } catch (error: any) {
+      console.error('Auth error:', error);
       setError(error.message);
     } finally {
       setLoading(false);
@@ -30,14 +55,26 @@ const Login: React.FC = () => {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setError('');
+    setSuccess('');
 
     try {
       await signInWithGoogle();
+      setSuccess('Google sign in successful!');
     } catch (error: any) {
+      console.error('Google auth error:', error);
       setError(error.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleModeSwitch = () => {
+    setIsLogin(!isLogin);
+    setError('');
+    setSuccess('');
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
   };
 
   return (
@@ -83,6 +120,21 @@ const Login: React.FC = () => {
             />
           </div>
 
+          {!isLogin && (
+            <div className="form-group">
+              <label htmlFor="confirmPassword">Confirm Password</label>
+              <input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                placeholder="Confirm your password"
+                minLength={6}
+              />
+            </div>
+          )}
+
           {error && (
             <motion.div
               className="error-message"
@@ -90,6 +142,16 @@ const Login: React.FC = () => {
               animate={{ opacity: 1, height: 'auto' }}
             >
               {error}
+            </motion.div>
+          )}
+
+          {success && (
+            <motion.div
+              className="success-message"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+            >
+              {success}
             </motion.div>
           )}
 
@@ -121,7 +183,7 @@ const Login: React.FC = () => {
             <button
               type="button"
               className="link-btn"
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={handleModeSwitch}
             >
               {isLogin ? 'Sign up' : 'Sign in'}
             </button>

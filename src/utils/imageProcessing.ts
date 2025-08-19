@@ -9,6 +9,7 @@ export interface ImageMetadata {
   type: string;
   dateTaken?: Date;
   location?: { lat: number; lng: number };
+  locationName?: string;
 }
 
 export const convertHeicToJpeg = async (file: File): Promise<File> => {
@@ -138,26 +139,138 @@ const convertDMSToDD = (dms: number[], ref: string): number => {
   }
 };
 
+// Group coordinates by proximity (neighborhood-level clustering)
+export const getLocationClusterKey = (lat: number, lng: number): string => {
+  // Use higher precision for neighborhood-level clustering
+  // Round to approximately 2km precision to capture neighborhoods/districts
+  const latRounded = Math.round(lat * 50) / 50;  // ~2.2km precision
+  const lngRounded = Math.round(lng * 50) / 50;  // ~2.2km precision at equator
+  return `${latRounded},${lngRounded}`;
+};
+
+// Cache for location names to avoid repeated API calls
+const locationNameCache = new Map<string, string | null>();
+
+// Rate limiting for Nominatim API (max 1 request per second)
+let lastRequestTime = 0;
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const getLocationName = async (lat: number, lng: number): Promise<string | null> => {
+  // Create cache key using cluster key for consistent caching
+  const cacheKey = getLocationClusterKey(lat, lng);
+  
+  // Check cache first
+  if (locationNameCache.has(cacheKey)) {
+    return locationNameCache.get(cacheKey) || null;
+  }
+  
   try {
-    // Use a free reverse geocoding service
+    // Rate limiting: ensure at least 1 second between requests
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+    if (timeSinceLastRequest < 1000) {
+      await delay(1000 - timeSinceLastRequest);
+    }
+    lastRequestTime = Date.now();
+    
+    // Use OpenStreetMap Nominatim API (free and reliable)
     const response = await fetch(
-      `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=en`
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=en`,
+      {
+        headers: {
+          'User-Agent': 'PhotoOrganizer/1.0 (Contact: user@example.com)' // Required by Nominatim
+        }
+      }
     );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
     const data = await response.json();
     
-    if (data.city) {
-      return data.city;
-    } else if (data.locality) {
-      return data.locality;
-    } else if (data.principalSubdivision) {
-      return data.principalSubdivision;
+    let locationName: string | null = null;
+    
+    // Create more specific location names from Nominatim data
+    if (data.address) {
+      const addr = data.address;
+      let specificParts: string[] = [];
+      
+      // Add specific landmarks, attractions, or neighborhoods first
+      if (addr.tourism) {
+        specificParts.push(addr.tourism);
+      }
+      if (addr.historic) {
+        specificParts.push(addr.historic);
+      }
+      if (addr.attraction) {
+        specificParts.push(addr.attraction);
+      }
+      if (addr.amenity) {
+        specificParts.push(addr.amenity);
+      }
+      
+      // Add neighborhood/area information
+      if (addr.neighbourhood) {
+        specificParts.push(addr.neighbourhood);
+      } else if (addr.suburb) {
+        specificParts.push(addr.suburb);
+      } else if (addr.quarter) {
+        specificParts.push(addr.quarter);
+      }
+      
+      // Add city/town as the base location
+      let baseLocation = '';
+      if (addr.city) {
+        baseLocation = addr.city;
+      } else if (addr.town) {
+        baseLocation = addr.town;
+      } else if (addr.village) {
+        baseLocation = addr.village;
+      } else if (addr.state) {
+        baseLocation = addr.state;
+      } else if (addr.country) {
+        baseLocation = addr.country;
+      }
+      
+      // Combine specific parts with base location
+      if (specificParts.length > 0 && baseLocation) {
+        // Take the most specific part + city
+        locationName = `${specificParts[0]}, ${baseLocation}`;
+      } else if (baseLocation) {
+        locationName = baseLocation;
+      }
     }
-    return null;
+    
+    console.log(`📍 Resolved ${lat.toFixed(3)}, ${lng.toFixed(3)} → ${locationName || 'Unknown'}`);
+    
+    // Cache the result (even if null)
+    locationNameCache.set(cacheKey, locationName);
+    
+    return locationName;
   } catch (error) {
-    console.error('Error getting location name:', error);
+    console.error(`Error getting location name for ${lat}, ${lng}:`, error);
+    // Cache the null result to avoid repeated failed requests
+    locationNameCache.set(cacheKey, null);
     return null;
   }
+};
+
+// Calculate distance between two coordinates in kilometers
+export const getDistanceBetweenCoordinates = (
+  lat1: number, lng1: number, 
+  lat2: number, lng2: number
+): number => {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng/2) * Math.sin(dLng/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
 };
 
 export const getTimeBasedCategory = (date: Date): string => {

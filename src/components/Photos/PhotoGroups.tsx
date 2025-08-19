@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePhoto } from '../../contexts/PhotoContext';
 import { Photo } from '../../firebase/firestore';
-import { getLocationName, getTimeBasedCategory } from '../../utils/imageProcessing';
+import { getLocationName, getTimeBasedCategory, getLocationClusterKey } from '../../utils/imageProcessing';
 import PhotoCard from './PhotoCard';
 import PhotoModal from './PhotoModal';
 
@@ -10,6 +10,7 @@ interface PhotoGroup {
   title: string;
   photos: Photo[];
   type: 'location' | 'time' | 'category';
+  locationKey?: string; // For location groups to ensure unique keys
 }
 
 const PhotoGroups: React.FC = () => {
@@ -27,12 +28,12 @@ const PhotoGroups: React.FC = () => {
     console.log('Grouping photos:', state.photos.length, 'total photos');
     
     state.photos.forEach(photo => {
-      console.log('Processing photo:', photo.originalName, 'metadata:', photo.metadata);
-      
       // Location grouping
       if (photo.metadata?.location) {
-        console.log('Photo has location:', photo.metadata.location);
-        const locationKey = `${photo.metadata.location.lat.toFixed(2)},${photo.metadata.location.lng.toFixed(2)}`;
+        const locationKey = getLocationClusterKey(
+          photo.metadata.location.lat, 
+          photo.metadata.location.lng
+        );
         if (!locationGroups[locationKey]) {
           locationGroups[locationKey] = [];
         }
@@ -59,18 +60,27 @@ const PhotoGroups: React.FC = () => {
     });
 
     // Convert location groups to PhotoGroup objects
-    console.log('Location groups found:', Object.keys(locationGroups).length);
     Object.entries(locationGroups).forEach(([locationKey, photos]) => {
-      console.log(`Location group ${locationKey}:`, photos.length, 'photos');
       if (photos.length > 0) {
         const firstPhoto = photos[0];
         if (firstPhoto.metadata?.location) {
-          const locationTitle = locationNames[locationKey] || `Location ${locationKey}`;
-          console.log(`Creating location group: ${locationTitle}`);
+          // Check if photo already has locationName from upload
+          const preResolvedName = firstPhoto.metadata.locationName;
+          let locationTitle = locationNames[locationKey] || preResolvedName || `Location ${locationKey}`;
+          
+          // If multiple groups would have the same title, make them unique
+          const existingGroup = groups.find(g => g.title === locationTitle && g.type === 'location');
+          if (existingGroup) {
+            // Add coordinate info to make it unique
+            const [lat, lng] = locationKey.split(',');
+            locationTitle = `${locationTitle} (${lat}, ${lng})`;
+          }
+          
           groups.push({
             title: locationTitle,
             photos,
-            type: 'location'
+            type: 'location',
+            locationKey: locationKey
           });
         }
       }
@@ -96,7 +106,10 @@ const PhotoGroups: React.FC = () => {
       
       state.photos.forEach(photo => {
         if (photo.metadata?.location) {
-          const locationKey = `${photo.metadata.location.lat.toFixed(2)},${photo.metadata.location.lng.toFixed(2)}`;
+          const locationKey = getLocationClusterKey(
+            photo.metadata.location.lat, 
+            photo.metadata.location.lng
+          );
           if (!locationGroups[locationKey]) {
             locationGroups[locationKey] = [];
           }
@@ -107,17 +120,24 @@ const PhotoGroups: React.FC = () => {
       for (const [locationKey, photos] of Object.entries(locationGroups)) {
         if (photos.length > 0 && !locationNames[locationKey]) {
           const firstPhoto = photos[0];
+          
           if (firstPhoto.metadata?.location) {
-            try {
-              const locationName = await getLocationName(
-                firstPhoto.metadata.location.lat,
-                firstPhoto.metadata.location.lng
-              );
-              if (locationName) {
-                setLocationNames(prev => ({ ...prev, [locationKey]: locationName }));
+            // Check if we already have a resolved location name
+            if (firstPhoto.metadata.locationName) {
+              setLocationNames(prev => ({ ...prev, [locationKey]: firstPhoto.metadata.locationName! }));
+            } else {
+              // Otherwise fetch it
+              try {
+                const locationName = await getLocationName(
+                  firstPhoto.metadata.location.lat,
+                  firstPhoto.metadata.location.lng
+                );
+                if (locationName) {
+                  setLocationNames(prev => ({ ...prev, [locationKey]: locationName }));
+                }
+              } catch (error) {
+                console.error(`Error getting location name for ${locationKey}:`, error);
               }
-            } catch (error) {
-              console.error('Error getting location name:', error);
             }
           }
         }
@@ -127,7 +147,7 @@ const PhotoGroups: React.FC = () => {
     if (state.photos.length > 0) {
       resolveLocationNames();
     }
-  }, [state.photos, locationNames]);
+  }, [state.photos]);
 
   const toggleGroupExpansion = (groupTitle: string) => {
     const newExpanded = new Set(expandedGroups);
@@ -170,7 +190,7 @@ const PhotoGroups: React.FC = () => {
       <div className="photo-groups">
         {photoGroups.map((group, groupIndex) => (
           <motion.div
-            key={group.title}
+            key={group.locationKey || group.title}
             className="photo-group"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

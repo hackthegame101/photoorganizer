@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePhoto } from '../../contexts/PhotoContext';
+import { getLocationName } from '../../utils/imageProcessing';
 
 interface PremiumViewProps {
   onExit: () => void;
@@ -13,9 +14,13 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
   const [slideInterval, setSlideInterval] = useState(3000);
   const [showControls, setShowControls] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [showPauseIndicator, setShowPauseIndicator] = useState(false);
+  const [locationName, setLocationName] = useState<string | null>(null);
+  const [loadingLocation, setLoadingLocation] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pauseIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const filteredPhotos = React.useMemo(() => {
     let photos = state.photos;
@@ -28,6 +33,40 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
   }, [state.photos, state.selectedCategory]);
 
   const currentPhoto = filteredPhotos[currentPhotoIndex];
+
+  // Fetch location name when photo changes
+  useEffect(() => {
+    const fetchLocationName = async () => {
+      if (currentPhoto?.metadata?.location) {
+        // Check if we already have a resolved location name
+        if (currentPhoto.metadata.locationName) {
+          setLocationName(currentPhoto.metadata.locationName);
+          setLoadingLocation(false);
+          return;
+        }
+        
+        // Otherwise fetch it
+        setLoadingLocation(true);
+        try {
+          const name = await getLocationName(
+            currentPhoto.metadata.location.lat, 
+            currentPhoto.metadata.location.lng
+          );
+          setLocationName(name);
+        } catch (error) {
+          console.error('Error fetching location name:', error);
+          setLocationName(null);
+        } finally {
+          setLoadingLocation(false);
+        }
+      } else {
+        setLocationName(null);
+        setLoadingLocation(false);
+      }
+    };
+
+    fetchLocationName();
+  }, [currentPhoto?.id, currentPhoto?.metadata?.location, currentPhoto?.metadata?.locationName]);
 
   const navigatePhoto = useCallback((direction: number) => {
     setCurrentPhotoIndex((prev) => {
@@ -58,6 +97,48 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
       setShowControls(false);
     }, 3000);
   }, []);
+
+  const togglePlayPause = useCallback(() => {
+    const newPlayState = !isPlaying;
+    setIsPlaying(newPlayState);
+    
+    // Show pause indicator for 2 seconds when pausing
+    if (!newPlayState) {
+      setShowPauseIndicator(true);
+      
+      // Clear any existing timeout
+      if (pauseIndicatorTimeoutRef.current) {
+        clearTimeout(pauseIndicatorTimeoutRef.current);
+      }
+      
+      // Hide the indicator after 2 seconds
+      pauseIndicatorTimeoutRef.current = setTimeout(() => {
+        setShowPauseIndicator(false);
+      }, 2000);
+    } else {
+      // Hide immediately when resuming
+      setShowPauseIndicator(false);
+      if (pauseIndicatorTimeoutRef.current) {
+        clearTimeout(pauseIndicatorTimeoutRef.current);
+      }
+    }
+  }, [isPlaying]);
+
+  const handleScreenClick = useCallback((event: React.MouseEvent) => {
+    // Prevent pause/play when clicking on controls or buttons
+    const target = event.target as HTMLElement;
+    
+    // Check if clicked element or its parent is a button or control
+    if (target.closest('button') || 
+        target.closest('.premium-controls') || 
+        target.closest('.premium-top-controls') || 
+        target.closest('.bottom-controls') || 
+        target.closest('.progress-indicator')) {
+      return;
+    }
+    
+    togglePlayPause();
+  }, [togglePlayPause]);
 
   // Initialize audio
   useEffect(() => {
@@ -96,7 +177,7 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
           break;
         case ' ':
           event.preventDefault();
-          setIsPlaying(!isPlaying);
+          togglePlayPause();
           break;
         case 'ArrowLeft':
           navigatePhoto(-1);
@@ -109,13 +190,16 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
 
     document.addEventListener('keydown', handleKeyPress);
     return () => document.removeEventListener('keydown', handleKeyPress);
-  }, [isPlaying, handleExit, navigatePhoto]);
+  }, [handleExit, navigatePhoto, togglePlayPause]);
 
-  // Cleanup timeout on unmount
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
       if (controlsTimeoutRef.current) {
         clearTimeout(controlsTimeoutRef.current);
+      }
+      if (pauseIndicatorTimeoutRef.current) {
+        clearTimeout(pauseIndicatorTimeoutRef.current);
       }
     };
   }, []);
@@ -140,6 +224,7 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
       style={{ cursor: showControls ? 'default' : 'none' }}
       onMouseMove={handleMouseMove}
       onMouseLeave={() => setShowControls(false)}
+      onClick={handleScreenClick}
     >
       {/* Background Audio */}
       <audio ref={audioRef} src="/bmg.mp3" />
@@ -171,6 +256,22 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
             exit={{ opacity: 0 }}
             transition={{ duration: 2 }}
           />
+
+          {/* Pause Indicator */}
+          <AnimatePresence>
+            {!isPlaying && showPauseIndicator && (
+              <motion.div
+                className="pause-indicator"
+                initial={{ opacity: 0, scale: 0 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0 }}
+                transition={{ duration: 0.3 }}
+              >
+                <div className="pause-icon">⏸️</div>
+                <div className="pause-text">Paused</div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </AnimatePresence>
 
@@ -188,7 +289,11 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
             <p>📅 {new Date(currentPhoto.metadata.dateTaken).toLocaleDateString()}</p>
           )}
           {currentPhoto.metadata?.location && (
-            <p>📍 {currentPhoto.metadata.location.lat.toFixed(4)}, {currentPhoto.metadata.location.lng.toFixed(4)}</p>
+            <p>
+              📍 {loadingLocation ? 'Loading location...' : 
+                   locationName || 
+                   `${currentPhoto.metadata.location.lat.toFixed(4)}, ${currentPhoto.metadata.location.lng.toFixed(4)}`}
+            </p>
           )}
           {state.selectedCategory && (
             <p className="category-name">
@@ -252,7 +357,7 @@ const PremiumView: React.FC<PremiumViewProps> = ({ onExit }) => {
             <div className="control-group">
               <button
                 className="control-btn"
-                onClick={() => setIsPlaying(!isPlaying)}
+                onClick={togglePlayPause}
                 title={isPlaying ? 'Pause slideshow' : 'Play slideshow'}
               >
                 {isPlaying ? '⏸️' : '▶️'}
