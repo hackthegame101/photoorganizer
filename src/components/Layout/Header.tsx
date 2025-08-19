@@ -60,6 +60,28 @@ const Header: React.FC = () => {
                 Premium
               </button>
             </nav>
+
+            {/* Mobile Navigation */}
+            <nav className="mobile-nav flex gap-sm">
+              <button
+                className={`btn btn-sm ${state.currentView === 'edit' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setView('edit')}
+              >
+                ✏️
+              </button>
+              <button
+                className={`btn btn-sm ${state.currentView === 'preview' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setView('preview')}
+              >
+                👁️
+              </button>
+              <button
+                className={`btn btn-sm mobile-premium-btn ${state.currentView === 'premium' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setView('premium')}
+              >
+                ✨
+              </button>
+            </nav>
           </div>
 
           <div className="flex items-center gap-md">

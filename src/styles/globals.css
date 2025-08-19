@@ -1361,6 +1361,10 @@ input:focus, textarea:focus, select:focus {
     display: none;
   }
   
+  .mobile-nav {
+    display: flex;
+  }
+  
   .mobile-overlay {
     position: fixed;
     top: 0;
@@ -1381,7 +1385,15 @@ input:focus, textarea:focus, select:focus {
     display: flex;
   }
   
+  .mobile-nav {
+    display: none;
+  }
+  
   .premium-btn {
+    display: none;
+  }
+  
+  .mobile-premium-btn {
     display: none;
   }
   
@@ -1393,6 +1405,10 @@ input:focus, textarea:focus, select:focus {
 @media (min-width: 1025px) {
   .premium-btn {
     display: inline-flex;
+  }
+  
+  .mobile-premium-btn {
+    display: none;
   }
   
   .user-email {
