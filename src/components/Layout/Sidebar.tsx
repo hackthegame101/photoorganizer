@@ -3,6 +3,7 @@ import { usePhoto } from '../../contexts/PhotoContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Category, createCategory, deleteCategoryAndPhotos } from '../../firebase/firestore';
 import { deletePhoto as deletePhotoFromStorage } from '../../firebase/storage';
+import { signOutUser } from '../../firebase/auth';
 
 const Sidebar: React.FC = () => {
   const { state, dispatch } = usePhoto();
@@ -106,6 +107,21 @@ const Sidebar: React.FC = () => {
     } finally {
       setDeletingCategory(null);
     }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOutUser();
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
+  const toggleTheme = () => {
+    dispatch({ 
+      type: 'SET_THEME', 
+      payload: state.theme === 'light' ? 'dark' : 'light' 
+    });
   };
 
   const colors = [
@@ -250,6 +266,28 @@ const Sidebar: React.FC = () => {
                 {state.photos.filter(p => p.metadata.size > 5 * 1024 * 1024).length}
               </span>
             </button>
+          </div>
+        </div>
+
+        {/* Mobile Options */}
+        <div className="mt-lg mobile-options">
+          <h3 className="text-md font-medium mb-md">Options</h3>
+          <div className="mobile-options-list">
+            <button className="category-item" onClick={toggleTheme}>
+              <div className="flex items-center gap-sm">
+                <span>{state.theme === 'light' ? '🌙' : '☀️'}</span>
+                <span>{state.theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
+              </div>
+            </button>
+            
+            {user && (
+              <button className="category-item" onClick={handleSignOut}>
+                <div className="flex items-center gap-sm">
+                  <span>👋</span>
+                  <span>Sign Out</span>
+                </div>
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -38,7 +38,7 @@ const Header: React.FC = () => {
             >
               ☰
             </button>
-            <h1 className="text-xl font-bold">Photo Organizer</h1>
+            <h1 className="text-xl font-bold desktop-title">Photo Organizer</h1>
             
             <nav className="desktop-nav flex gap-md">
               <button
@@ -86,7 +86,7 @@ const Header: React.FC = () => {
 
           <div className="flex items-center gap-md">
             <button
-              className="btn btn-secondary"
+              className="btn btn-secondary desktop-theme-btn"
               onClick={toggleTheme}
               aria-label="Toggle theme"
             >
@@ -94,7 +94,7 @@ const Header: React.FC = () => {
             </button>
             
             {user && (
-              <div className="flex items-center gap-sm">
+              <div className="flex items-center gap-sm desktop-user-section">
                 <span className="text-sm user-email">{user.email}</span>
                 <button
                   className="btn btn-secondary btn-sm"
