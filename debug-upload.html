@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iPhone Photo Upload Debug</title>
+    <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.js"></script>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif; 
+            margin: 20px; 
+            max-width: 800px;
+        }
+        .result { 
+            margin: 20px 0; 
+            padding: 15px; 
+            background: #f5f5f5; 
+            border-radius: 8px;
+            border-left: 4px solid #007AFF;
+        }
+        .error { border-left-color: #FF3B30; }
+        .success { border-left-color: #34C759; }
+        input { 
+            margin: 20px 0; 
+            padding: 10px;
+            font-size: 16px;
+        }
+        pre { 
+            background: #000; 
+            color: #0F0; 
+            padding: 10px; 
+            border-radius: 4px;
+            font-size: 12px;
+            overflow-x: auto;
+        }
+        button {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>📱 iPhone Photo Upload Debug</h1>
+    <p>Upload iPhone photos to test metadata extraction and see detailed logs:</p>
+    
+    <input type="file" id="fileInput" accept="image/*" multiple />
+    <button onclick="clearLogs()">Clear Logs</button>
+    
+    <div id="result"></div>
+    
+    <script>
+        const logs = [];
+        
+        function log(type, message, data = null) {
+            const timestamp = new Date().toLocaleTimeString();
+            logs.push({ type, message, data, timestamp });
+            console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`, data || '');
+            updateDisplay();
+        }
+        
+        function clearLogs() {
+            logs.length = 0;
+            document.getElementById('result').innerHTML = '';
+        }
+        
+        function updateDisplay() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = logs.map(log => `
+                <div class="result ${log.type}">
+                    <strong>[${log.timestamp}] ${log.type.toUpperCase()}:</strong> ${log.message}
+                    ${log.data ? `<pre>${JSON.stringify(log.data, null, 2)}</pre>` : ''}
+                </div>
+            `).join('');
+        }
+        
+        function convertDMSToDD(dms, ref) {
+            try {
+                if (!Array.isArray(dms) || dms.length < 3) {
+                    throw new Error('Invalid DMS array format');
+                }
+                
+                const degrees = Number(dms[0]) || 0;
+                const minutes = Number(dms[1]) || 0;
+                const seconds = Number(dms[2]) || 0;
+                
+                let dd = degrees + (minutes / 60) + (seconds / 3600);
+                if (ref === 'S' || ref === 'W') dd = dd * -1;
+                
+                return dd;
+            } catch (error) {
+                log('error', 'Error converting DMS to DD', { dms, ref, error: error.message });
+                return NaN;
+            }
+        }
+        
+        function processFile(file) {
+            log('info', `Processing file: ${file.name}`, { 
+                size: file.size, 
+                type: file.type, 
+                lastModified: new Date(file.lastModified).toISOString()
+            });
+            
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            
+            img.onload = function() {
+                try {
+                    log('success', 'Image loaded successfully', {
+                        naturalWidth: img.naturalWidth,
+                        naturalHeight: img.naturalHeight
+                    });
+                    
+                    EXIF.getData(img, function() {
+                        try {
+                            const allTags = EXIF.getAllTags(this);
+                            log('info', 'All EXIF tags extracted', allTags);
+                            
+                            const dateTaken = EXIF.getTag(this, 'DateTime') || EXIF.getTag(this, 'DateTimeOriginal');
+                            const lat = EXIF.getTag(this, 'GPSLatitude');
+                            const lon = EXIF.getTag(this, 'GPSLongitude');
+                            const latRef = EXIF.getTag(this, 'GPSLatitudeRef');
+                            const lonRef = EXIF.getTag(this, 'GPSLongitudeRef');
+                            
+                            log('info', 'Raw EXIF data', {
+                                dateTaken,
+                                lat,
+                                lon,
+                                latRef,
+                                lonRef
+                            });
+                            
+                            // Process location
+                            let location = null;
+                            if (lat && lon && latRef && lonRef) {
+                                try {
+                                    const latDecimal = convertDMSToDD(lat, latRef);
+                                    const lonDecimal = convertDMSToDD(lon, lonRef);
+                                    
+                                    if (!isNaN(latDecimal) && !isNaN(lonDecimal) && 
+                                        latDecimal >= -90 && latDecimal <= 90 && 
+                                        lonDecimal >= -180 && lonDecimal <= 180) {
+                                        location = { lat: latDecimal, lng: lonDecimal };
+                                        log('success', 'GPS coordinates processed', location);
+                                    } else {
+                                        log('error', 'Invalid GPS coordinates', { lat: latDecimal, lng: lonDecimal });
+                                    }
+                                } catch (error) {
+                                    log('error', 'Error processing GPS coordinates', error.message);
+                                }
+                            } else {
+                                log('info', 'No GPS data found in image');
+                            }
+                            
+                            // Process date
+                            let dateObject = null;
+                            if (dateTaken) {
+                                try {
+                                    if (typeof dateTaken === 'string') {
+                                        log('info', 'Processing string date', { original: dateTaken });
+                                        
+                                        const normalizedDate = dateTaken.replace(/:/g, '-').replace(/(\\d{4})-(\\d{2})-(\\d{2})-/, '$1-$2-$3 ');
+                                        log('info', 'Normalized date string', { normalized: normalizedDate });
+                                        
+                                        dateObject = new Date(normalizedDate);
+                                        
+                                        if (isNaN(dateObject.getTime())) {
+                                            log('error', 'Invalid date after normalization', normalizedDate);
+                                            dateObject = null;
+                                        } else {
+                                            log('success', 'Date processed successfully', dateObject.toISOString());
+                                        }
+                                    } else {
+                                        dateObject = new Date(dateTaken);
+                                        if (isNaN(dateObject.getTime())) {
+                                            log('error', 'Invalid date object', dateTaken);
+                                            dateObject = null;
+                                        } else {
+                                            log('success', 'Date object processed', dateObject.toISOString());
+                                        }
+                                    }
+                                } catch (error) {
+                                    log('error', 'Error parsing EXIF date', { dateTaken, error: error.message });
+                                }
+                            } else {
+                                log('info', 'No date taken found in EXIF');
+                            }
+                            
+                            const finalMetadata = {
+                                width: img.naturalWidth,
+                                height: img.naturalHeight,
+                                size: file.size,
+                                type: file.type,
+                                dateTaken: dateObject,
+                                location: location
+                            };
+                            
+                            log('success', 'Final metadata object', finalMetadata);
+                            
+                        } catch (exifError) {
+                            log('error', 'Error in EXIF processing', exifError.message);
+                        }
+                    });
+                    
+                } catch (error) {
+                    log('error', 'Error processing image', error.message);
+                }
+                
+                URL.revokeObjectURL(url);
+            };
+            
+            img.onerror = function() {
+                log('error', 'Failed to load image', file.name);
+                URL.revokeObjectURL(url);
+            };
+            
+            img.src = url;
+        }
+        
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            clearLogs();
+            const files = Array.from(e.target.files);
+            
+            log('info', `Processing ${files.length} file(s)`);
+            
+            files.forEach((file, index) => {
+                log('info', `=== Starting file ${index + 1} of ${files.length} ===`);
+                processFile(file);
+            });
+        });
+    </script>
+</body>
+</html>

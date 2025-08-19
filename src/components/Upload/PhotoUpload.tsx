@@ -57,8 +57,41 @@ const PhotoUpload: React.FC = () => {
 
       // Extract image metadata including EXIF data
       console.log('Extracting image metadata...');
-      const metadata = await getImageMetadata(processedFile);
-      console.log('Extracted metadata:', metadata);
+      let metadata;
+      try {
+        metadata = await getImageMetadata(processedFile);
+        console.log('Extracted metadata:', metadata);
+      } catch (metadataError) {
+        console.warn('Error extracting metadata, using basic metadata:', metadataError);
+        // Fallback to basic metadata
+        metadata = {
+          size: processedFile.size,
+          type: processedFile.type,
+          width: 0,
+          height: 0
+        };
+      }
+
+      // Clean metadata to remove undefined values (Firestore doesn't accept undefined)
+      const cleanMetadata: any = {
+        width: metadata.width || 0,
+        height: metadata.height || 0,
+        size: metadata.size,
+        type: metadata.type
+      };
+
+      // Only add optional fields if they have valid values
+      if (metadata.dateTaken && metadata.dateTaken instanceof Date && !isNaN(metadata.dateTaken.getTime())) {
+        cleanMetadata.dateTaken = metadata.dateTaken;
+      }
+
+      if (metadata.location && 
+          typeof metadata.location.lat === 'number' && 
+          typeof metadata.location.lng === 'number' &&
+          !isNaN(metadata.location.lat) && 
+          !isNaN(metadata.location.lng)) {
+        cleanMetadata.location = metadata.location;
+      }
 
       const photoData: any = {
         filename: photoId,
@@ -67,7 +100,7 @@ const PhotoUpload: React.FC = () => {
         thumbnailUrl: downloadUrl,
         userId: user.uid,
         tags: [],
-        metadata: metadata
+        metadata: cleanMetadata
       };
 
       // Only add categoryId if a category is selected
@@ -75,6 +108,8 @@ const PhotoUpload: React.FC = () => {
         photoData.categoryId = state.selectedCategory;
       }
       
+      console.log('Raw metadata:', metadata);
+      console.log('Clean metadata:', cleanMetadata);
       console.log('Photo data prepared:', photoData);
       console.log('Selected category:', state.selectedCategory);
       console.log('Available categories:', state.categories);

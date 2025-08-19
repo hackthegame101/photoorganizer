@@ -43,14 +43,48 @@ export const getImageMetadata = (file: File): Promise<ImageMetadata> => {
           
           let location: { lat: number; lng: number } | undefined;
           if (lat && lon && latRef && lonRef) {
-            const latDecimal = convertDMSToDD(lat, latRef);
-            const lonDecimal = convertDMSToDD(lon, lonRef);
-            location = { lat: latDecimal, lng: lonDecimal };
+            try {
+              const latDecimal = convertDMSToDD(lat, latRef);
+              const lonDecimal = convertDMSToDD(lon, lonRef);
+              
+              // Validate coordinates are reasonable
+              if (!isNaN(latDecimal) && !isNaN(lonDecimal) && 
+                  latDecimal >= -90 && latDecimal <= 90 && 
+                  lonDecimal >= -180 && lonDecimal <= 180) {
+                location = { lat: latDecimal, lng: lonDecimal };
+              } else {
+                console.warn('Invalid GPS coordinates, skipping:', { lat: latDecimal, lng: lonDecimal });
+              }
+            } catch (error) {
+              console.warn('Error parsing GPS coordinates:', { lat, lon, latRef, lonRef }, error);
+            }
           }
           
           let dateObject: Date | undefined;
           if (dateTaken) {
-            dateObject = new Date(dateTaken);
+            try {
+              // Handle various date formats from EXIF
+              if (typeof dateTaken === 'string') {
+                // EXIF dates are often in format "YYYY:MM:DD HH:MM:SS"
+                const normalizedDate = dateTaken.replace(/:/g, '-').replace(/(\d{4})-(\d{2})-(\d{2})-/, '$1-$2-$3 ');
+                dateObject = new Date(normalizedDate);
+                
+                // Check if date is valid
+                if (isNaN(dateObject.getTime())) {
+                  console.warn('Invalid EXIF date format, skipping date:', dateTaken);
+                  dateObject = undefined;
+                }
+              } else {
+                dateObject = new Date(dateTaken);
+                if (isNaN(dateObject.getTime())) {
+                  console.warn('Invalid date object, skipping:', dateTaken);
+                  dateObject = undefined;
+                }
+              }
+            } catch (error) {
+              console.warn('Error parsing EXIF date:', dateTaken, error);
+              dateObject = undefined;
+            }
           }
           
           URL.revokeObjectURL(url);
@@ -85,9 +119,23 @@ export const getImageMetadata = (file: File): Promise<ImageMetadata> => {
 };
 
 const convertDMSToDD = (dms: number[], ref: string): number => {
-  let dd = dms[0] + (dms[1] / 60) + (dms[2] / 3600);
-  if (ref === 'S' || ref === 'W') dd = dd * -1;
-  return dd;
+  try {
+    if (!Array.isArray(dms) || dms.length < 3) {
+      throw new Error('Invalid DMS array format');
+    }
+    
+    const degrees = Number(dms[0]) || 0;
+    const minutes = Number(dms[1]) || 0;
+    const seconds = Number(dms[2]) || 0;
+    
+    let dd = degrees + (minutes / 60) + (seconds / 3600);
+    if (ref === 'S' || ref === 'W') dd = dd * -1;
+    
+    return dd;
+  } catch (error) {
+    console.warn('Error converting DMS to DD:', dms, ref, error);
+    return NaN;
+  }
 };
 
 export const getLocationName = async (lat: number, lng: number): Promise<string | null> => {
