@@ -3,8 +3,8 @@ import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePhoto } from '../../contexts/PhotoContext';
-import { convertHeicToJpeg, getImageMetadata, getLocationName } from '../../utils/imageProcessing';
-import { uploadPhoto } from '../../firebase/storage';
+import { convertHeicToJpeg, getImageMetadata, getLocationName, compressImage, generateThumbnail } from '../../utils/imageProcessing';
+import { uploadPhoto, uploadThumbnail, uploadCompressedPhoto } from '../../firebase/storage';
 import { createPhoto } from '../../firebase/firestore';
 
 interface UploadProgress {
@@ -46,10 +46,29 @@ const PhotoUpload: React.FC = () => {
 
       const photoId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       
-      // Upload to Storage first
-      console.log('Starting storage upload...');
-      const downloadUrl = await uploadPhoto(processedFile, user.uid, photoId);
-      console.log('Storage upload completed');
+      setUploadQueue(prev => prev.map(item => 
+        item.file === file ? { ...item, progress: 20 } : item
+      ));
+
+      // Generate compressed version and thumbnail
+      console.log('Generating compressed image and thumbnail...');
+      const [compressedBlob, thumbnailBlob] = await Promise.all([
+        compressImage(processedFile, 1920, 1080, 0.8),
+        generateThumbnail(processedFile, 300)
+      ]);
+
+      setUploadQueue(prev => prev.map(item => 
+        item.file === file ? { ...item, progress: 40 } : item
+      ));
+      
+      // Upload all versions to Storage
+      console.log('Starting storage uploads...');
+      const [originalUrl, compressedUrl, thumbnailUrl] = await Promise.all([
+        uploadPhoto(processedFile, user.uid, photoId),
+        uploadCompressedPhoto(compressedBlob, user.uid, photoId),
+        uploadThumbnail(thumbnailBlob, user.uid, photoId)
+      ]);
+      console.log('Storage uploads completed');
 
       setUploadQueue(prev => prev.map(item => 
         item.file === file ? { ...item, progress: 70 } : item
@@ -106,8 +125,9 @@ const PhotoUpload: React.FC = () => {
       const photoData: any = {
         filename: photoId,
         originalName: file.name,
-        url: downloadUrl,
-        thumbnailUrl: downloadUrl,
+        url: compressedUrl, // Use compressed version as default
+        originalUrl: originalUrl, // Store original for high-quality viewing
+        thumbnailUrl: thumbnailUrl,
         userId: user.uid,
         tags: [],
         metadata: cleanMetadata
@@ -205,7 +225,7 @@ const PhotoUpload: React.FC = () => {
         } : item
       ));
     }
-  }, [state.selectedCategory, state.categories]);
+  }, [user, state.selectedCategory, state.categories]);
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     setIsDragActive(false);
@@ -214,7 +234,7 @@ const PhotoUpload: React.FC = () => {
     acceptedFiles.forEach(file => {
       processFile(file);
     });
-  }, [user, processFile]);
+  }, [processFile]);
 
   const { getRootProps, getInputProps } = useDropzone({
     onDrop,

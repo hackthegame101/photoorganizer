@@ -19,7 +19,8 @@ export interface Photo {
   filename: string;
   originalName: string;
   url: string;
-  thumbnailUrl?: string;
+  originalUrl?: string; // Full resolution original image
+  thumbnailUrl?: string; // Small thumbnail for grid views
   userId: string;
   categoryId?: string;
   tags: string[];

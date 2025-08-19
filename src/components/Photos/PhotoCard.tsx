@@ -21,6 +21,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
 }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [currentImageSrc, setCurrentImageSrc] = useState('');
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
@@ -35,6 +36,44 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
     const d = date.toDate ? date.toDate() : new Date(date);
     return d.toLocaleDateString();
   };
+
+  // Progressive loading strategy for premium views
+  React.useEffect(() => {
+    setImageLoaded(false);
+    setImageError(false);
+    
+    if (viewMode === 'premium' || viewMode === 'premtime') {
+      // Start with thumbnail for instant loading
+      if (photo.thumbnailUrl) {
+        setCurrentImageSrc(photo.thumbnailUrl);
+        
+        // Then try to load compressed version in background
+        const compressedImg = new Image();
+        compressedImg.onload = () => {
+          setCurrentImageSrc(photo.url); // Switch to compressed version
+          setImageLoaded(false); // Reset to show loading for new image
+        };
+        compressedImg.onerror = () => {
+          // If compressed fails, fallback to original if available
+          if (photo.originalUrl && photo.originalUrl !== photo.url) {
+            const originalImg = new Image();
+            originalImg.onload = () => {
+              setCurrentImageSrc(photo.originalUrl!);
+              setImageLoaded(false); // Reset to show loading for new image
+            };
+            originalImg.src = photo.originalUrl;
+          }
+        };
+        compressedImg.src = photo.url;
+      } else {
+        // No thumbnail, start with compressed
+        setCurrentImageSrc(photo.url);
+      }
+    } else {
+      // For preview and edit modes, use thumbnail
+      setCurrentImageSrc(photo.thumbnailUrl || photo.url);
+    }
+  }, [photo, viewMode]);
 
   // For preview mode, use minimal Google Photos style
   if (viewMode === 'preview' || viewMode === 'premium' || viewMode === 'premtime') {
@@ -58,7 +97,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
             </div>
           ) : (
             <img
-              src={photo.thumbnailUrl || photo.url}
+              src={currentImageSrc}
               alt={photo.originalName}
               className={`photo-image ${imageLoaded ? 'loaded' : ''}`}
               onLoad={() => setImageLoaded(true)}
@@ -107,7 +146,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
           </div>
         ) : (
           <img
-            src={photo.thumbnailUrl || photo.url}
+            src={currentImageSrc || photo.thumbnailUrl || photo.url}
             alt={photo.originalName}
             className={`photo-image ${imageLoaded ? 'loaded' : ''}`}
             onLoad={() => setImageLoaded(true)}

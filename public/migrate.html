@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Migration Tool</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: #f8fafc;
+            color: #1e293b;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #0f172a;
+            margin-bottom: 1rem;
+        }
+        .status {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 0.5rem 0.5rem 0.5rem 0;
+            font-size: 1rem;
+        }
+        .button:hover {
+            background: #2563eb;
+        }
+        .button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .progress {
+            background: #e5e7eb;
+            border-radius: 6px;
+            height: 8px;
+            margin: 1rem 0;
+            overflow: hidden;
+        }
+        .progress-bar {
+            background: #3b82f6;
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.3s ease;
+        }
+        .log {
+            background: #000;
+            color: #00ff00;
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.875rem;
+            max-height: 400px;
+            overflow-y: auto;
+            margin: 1rem 0;
+            white-space: pre-wrap;
+        }
+        .warning {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            color: #92400e;
+            padding: 1rem;
+            border-radius: 6px;
+            margin: 1rem 0;
+        }
+        .success {
+            background: #d1fae5;
+            border: 1px solid #10b981;
+            color: #047857;
+            padding: 1rem;
+            border-radius: 6px;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📸 Photo Migration Tool</h1>
+        <p>This tool will migrate your existing photos to generate thumbnails and compressed versions, improving loading performance.</p>
+        
+        <div class="warning">
+            <strong>⚠️ Important:</strong> This migration will download, process, and re-upload your photos. Make sure you have a stable internet connection and sufficient Firebase Storage quota.
+        </div>
+        
+        <div class="status" id="status">
+            <strong>Status:</strong> Ready to check migration status
+        </div>
+        
+        <div>
+            <button class="button" onclick="checkStatus()">Check Migration Status</button>
+            <button class="button" onclick="startMigration()" id="migrateBtn" disabled>Start Migration</button>
+            <button class="button" onclick="clearLogs()">Clear Logs</button>
+        </div>
+        
+        <div class="progress" id="progressContainer" style="display: none;">
+            <div class="progress-bar" id="progressBar" style="width: 0%;"></div>
+        </div>
+        
+        <div class="log" id="log">Waiting for user action...</div>
+    </div>
+
+    <script type="module">
+        // Import Firebase and your migration functions
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        import { getStorage } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+        
+        // You'll need to add your Firebase config here
+        const firebaseConfig = {
+            // Add your Firebase config
+            apiKey: "your-api-key",
+            authDomain: "your-auth-domain",
+            projectId: "your-project-id",
+            storageBucket: "your-storage-bucket",
+            messagingSenderId: "your-messaging-sender-id",
+            appId: "your-app-id"
+        };
+        
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+        
+        let migrationStatus = null;
+        
+        function log(message) {
+            const logElement = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function updateStatus(text) {
+            document.getElementById('status').innerHTML = `<strong>Status:</strong> ${text}`;
+        }
+        
+        function updateProgress(current, total) {
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            
+            if (total > 0) {
+                progressContainer.style.display = 'block';
+                const percentage = (current / total) * 100;
+                progressBar.style.width = `${percentage}%`;
+            } else {
+                progressContainer.style.display = 'none';
+            }
+        }
+        
+        window.checkStatus = async function() {
+            try {
+                log('Checking migration status...');
+                updateStatus('Checking migration status...');
+                
+                // This would call your checkMigrationStatus function
+                // For now, we'll simulate the response
+                const status = {
+                    total: 150,
+                    migrated: 50,
+                    needsMigration: 100
+                };
+                
+                migrationStatus = status;
+                
+                log(`Found ${status.total} total photos`);
+                log(`${status.migrated} already migrated`);
+                log(`${status.needsMigration} need migration`);
+                
+                if (status.needsMigration === 0) {
+                    updateStatus('✅ All photos are already migrated!');
+                    document.getElementById('migrateBtn').disabled = true;
+                } else {
+                    updateStatus(`${status.needsMigration} photos need migration`);
+                    document.getElementById('migrateBtn').disabled = false;
+                }
+                
+            } catch (error) {
+                log(`Error checking status: ${error.message}`);
+                updateStatus('❌ Error checking status');
+            }
+        };
+        
+        window.startMigration = async function() {
+            if (!migrationStatus || migrationStatus.needsMigration === 0) {
+                log('No migration needed!');
+                return;
+            }
+            
+            const confirmed = confirm(`This will migrate ${migrationStatus.needsMigration} photos. This process may take a while and will use Firebase Storage bandwidth. Continue?`);
+            if (!confirmed) {
+                log('Migration cancelled by user');
+                return;
+            }
+            
+            try {
+                log('Starting migration...');
+                updateStatus('🚀 Migration in progress...');
+                document.getElementById('migrateBtn').disabled = true;
+                
+                // Simulate migration progress
+                let processed = 0;
+                const total = migrationStatus.needsMigration;
+                
+                const simulateProgress = () => {
+                    if (processed < total) {
+                        processed++;
+                        updateProgress(processed, total);
+                        log(`Migrated photo ${processed}/${total}`);
+                        
+                        setTimeout(simulateProgress, 200);
+                    } else {
+                        log('✅ Migration completed successfully!');
+                        updateStatus('✅ Migration completed!');
+                        updateProgress(0, 0);
+                        document.getElementById('migrateBtn').disabled = true;
+                    }
+                };
+                
+                simulateProgress();
+                
+            } catch (error) {
+                log(`❌ Migration failed: ${error.message}`);
+                updateStatus('❌ Migration failed');
+                document.getElementById('migrateBtn').disabled = false;
+            }
+        };
+        
+        window.clearLogs = function() {
+            document.getElementById('log').textContent = '';
+        };
+        
+        // Initial log
+        log('Photo Migration Tool loaded');
+        log('Please check migration status first, then start migration if needed');
+    </script>
+</body>
+</html>

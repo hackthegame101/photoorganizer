@@ -205,7 +205,7 @@ const PhotoModal: React.FC<PhotoModalProps> = ({
         {/* Image Container */}
         <div className="photo-container" onTouchEnd={handleTouchEnd}>
           <motion.img
-            src={photo.url}
+            src={photo.originalUrl || photo.url}
             alt={photo.originalName}
             className="modal-photo"
             style={{

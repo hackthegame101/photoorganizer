@@ -297,7 +297,54 @@ export const getTimeBasedCategory = (date: Date): string => {
   }
 };
 
-export const generateThumbnail = (file: File, maxSize: number = 300): Promise<string> => {
+export const compressImage = (file: File, maxWidth: number = 1920, maxHeight: number = 1080, quality: number = 0.8): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) {
+      reject(new Error('Canvas context not supported'));
+      return;
+    }
+    
+    img.onload = () => {
+      // Calculate new dimensions while maintaining aspect ratio
+      let { width, height } = img;
+      
+      if (width > maxWidth || height > maxHeight) {
+        const ratio = Math.min(maxWidth / width, maxHeight / height);
+        width = Math.floor(width * ratio);
+        height = Math.floor(height * ratio);
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      // Use better image scaling
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      canvas.toBlob((blob) => {
+        URL.revokeObjectURL(img.src);
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('Failed to create compressed image blob'));
+        }
+      }, 'image/jpeg', quality);
+    };
+    
+    img.onerror = () => {
+      URL.revokeObjectURL(img.src);
+      reject(new Error('Failed to load image'));
+    };
+    img.src = URL.createObjectURL(file);
+  });
+};
+
+export const generateThumbnail = (file: File, maxSize: number = 300): Promise<Blob> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const canvas = document.createElement('canvas');
@@ -313,11 +360,25 @@ export const generateThumbnail = (file: File, maxSize: number = 300): Promise<st
       canvas.width = img.width * ratio;
       canvas.height = img.height * ratio;
       
+      // Use better image scaling
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL('image/jpeg', 0.7));
+      
+      canvas.toBlob((blob) => {
+        URL.revokeObjectURL(img.src);
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error('Failed to create thumbnail blob'));
+        }
+      }, 'image/jpeg', 0.7);
     };
     
-    img.onerror = () => reject(new Error('Failed to load image'));
+    img.onerror = () => {
+      URL.revokeObjectURL(img.src);
+      reject(new Error('Failed to load image'));
+    };
     img.src = URL.createObjectURL(file);
   });
 };
